@@ -1,0 +1,65 @@
+# Binaries
+/bin/
+/build/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+# Ignore only the executables go build drops in the repository root, anchored with a leading /.
+# Unanchored, quant4dad-* would also ignore source directories such as cmd/quant4dad-mcp/.
+/quant4dad
+/quant4dad-*
+
+# Test / coverage
+*.test
+*.out
+coverage.*
+*.prof
+
+# JavaScript / TypeScript build output
+node_modules/
+web/dist/
+*.tsbuildinfo
+agent-runtime/.tmp/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor (we rely on module cache)
+/vendor/
+
+# Runtime data — sqlite DB, CSV bars, exports
+/data/
+/AGENT_DAILY_REVIEW.md
+scripts/__pycache__/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+/logs/
+*.log
+
+# Local config / secrets
+.env
+.env.*
+!.env.example
+/config/*.local.yaml
+/config/local/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker compose override (local only)
+docker-compose.override.yml

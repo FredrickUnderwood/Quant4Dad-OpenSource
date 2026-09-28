@@ -1,0 +1,98 @@
+# Standalone deployment
+
+Quant4Dad runs without a deployment platform, configuration service, private SDK, or predefined domain. Docker with Compose v2.20 or newer and Bash are the host requirements. The first build downloads pinned public Go, npm and Python WASI dependencies; it can take several minutes. Agent Runtime additionally builds its pinned DeepSeek Harness source tree.
+
+From the repository root, deploy Web + API with SQLite:
+
+```sh
+./scripts/install.sh
+```
+
+Open `http://127.0.0.1:3000`. The installer prints the path to the private login token file; read that file and enter its value in the login page. It never prints credentials itself. SQLite, configuration and tool artifacts live under `data/standalone`, outside the images. The default network exposes Web only; API is reachable by Web inside the Compose network.
+
+The installation is single-owner. Generated tokens are random and distinct. Configuration and credential files have mode `0600`, private directories `0700`; containers run with the installation user's non-root UID (root installations use UID 65532). The Web container receives only its own non-secret proxy configuration. Re-running the installer preserves tokens, data, and enabled profiles and recreates containers to apply configuration changes. Do not run two installers against the same state directory concurrently.
+
+No market-data or news crawlers ship in this repository. Scheduled collection is disabled. Import your own CSV data using the bundled `quant4dad-import` command, or implement and register a provider through the datasource interface. See the import command's `--help` and the examples directory.
+
+## Optional extensions
+
+The extensions can be enabled independently or together:
+
+```sh
+./scripts/install.sh --with-mcp
+./scripts/install.sh --with-agent
+./scripts/install.sh --with-mcp --with-agent
+```
+
+MCP listens at `http://127.0.0.1:8090/mcp`. Set the client's `Authorization: Bearer ...` header using `data/standalone/config/mcp-token`. The dedicated token authorizes all 31 Agent tools, including writes. MCP has its own sessions, audit identity and signing key; it works with Agent Runtime disabled. The API owns database changes and isolated Python execution; the MCP container is a protocol proxy with no database credentials. Clients must preserve `Mcp-Session-Id` and reuse the same JSON-RPC ID and arguments for retries.
+
+Agent Runtime is an optional sidecar sharing the API network namespace. Its Bridge stays on loopback; no Runtime port is published. A separate private configuration contains control, internal MCP and Bridge tokens, an Ed25519 run key, profile revisions and input-meter hash. The installer obtains the actual local image ID and records it as a local Docker image ID, without claiming a signed registry release. Runtime model snapshots live on tmpfs. Internal Agent calls continue to enforce approval and run-capability policies independently of the external MCP token.
+
+Enable Agent, then configure a model provider through Web settings before starting a conversation. No model credentials are needed for base, MCP, or Runtime startup. Model requests use the configured provider and may incur its normal usage charges.
+
+## MySQL and existing databases
+
+Supply the DSN through a private file, rather than putting it in shell arguments:
+
+```sh
+./scripts/install.sh --mysql-dsn-file /secure/mysql-dsn
+```
+
+A DSN has the driver's usual format, for example `user:password@tcp(mysql-host:3306)/quant4dad?charset=utf8mb4&parseTime=true&loc=Local`. The installer copies the value into private API YAML; it never contacts the database itself. Normal API startup applies schema migrations and creates the default cost model.
+
+For an already migrated database, explicitly skip both operations:
+
+```sh
+./scripts/install.sh --mysql-dsn-file /secure/mysql-dsn --skip-migration --skip-seed --no-background
+```
+
+This checks the existing schema and fails if it is incomplete. `--no-background` also stops scheduled collection, coverage scans and Agent workers. These flags prevent automatic startup writes; they do not turn the application into a read-only service. Use read-only API requests for a read-only production regression. Never point `QUANT4DAD_TEST_MYSQL_DSN` at a business database: repository tests modify schema and settings. Use a dedicated test database in the same MySQL instance.
+
+The API also supports explicit one-off `--migration check`, `--migration apply`, and `--migration compatible` commands. `check` returns 0 for a complete schema, 10 when migration is needed, and 1 on errors. `compatible` checks an existing schema without changing it.
+
+## Ports, separate installations and updates
+
+```sh
+./scripts/install.sh --web-port 18080 --mcp-port 18090 \
+  --state-dir /opt/quant4dad-opensource/state \
+  --project-name quant4dad-opensource
+```
+
+Use `--bind 0.0.0.0` to listen beyond loopback. For Internet access, put an HTTPS reverse proxy in front of Web and MCP. Set `web.trusted_proxies` to the trusted ingress addresses, and `server.trusted_proxies` to the Web proxy addresses; each hop verifies its immediate peer before honoring `X-Forwarded-Proto`. Do not publish the internal API or Agent Bridge. The full MCP endpoint rejects browser `Origin` headers.
+
+Deployment settings are saved in `data/standalone/deployment.env`; business configuration is in `config/api.yaml`. Review and edit these private files locally as needed. Avoid `docker compose config` without `--quiet` when handling private overrides. Use the printed `docker compose --env-file ... -f ...` command to inspect services or logs. `down` stops the installation; it does not delete the bind-mounted state directory.
+
+`--no-build` uses already loaded images. Default image names are `quant4dad-opensource-api:local`, `quant4dad-opensource-web:local`, `quant4dad-opensource-mcp:local`, and `quant4dad-opensource-agent:local`. Set their `Q4D_*_IMAGE` environment variables on the first install, or edit the saved deployment settings on subsequent installs. Updating uses the same install command against the new source; back up database and state before an upgrade.
+
+## Verification
+
+A read-only smoke check verifies login, Web-to-API proxying, core query routes, optional Agent routes, and the exact MCP catalog:
+
+```sh
+python3 scripts/standalone-smoke.py \
+  --web-url http://127.0.0.1:3000 \
+  --token-file data/standalone/config/login-token
+
+python3 scripts/standalone-smoke.py \
+  --web-url http://127.0.0.1:3000 \
+  --token-file data/standalone/config/login-token \
+  --mcp-url http://127.0.0.1:8090/mcp \
+  --mcp-token-file data/standalone/config/mcp-token --expect-agent
+```
+
+Use `--expect-agent` only when Runtime is enabled. The final command covers the combined profile. Test all four combinations in separate state directories, or enable them in sequence while retaining the same state.
+
+For a real Agent check, use a separate test installation with Agent enabled, import the synthetic CSV examples, and configure an authorized model provider in that installation. This runner makes actual model requests (and one capability probe if needed), so normal provider charges apply. Use the provider and default-model identifiers shown in the model catalog:
+
+```sh
+python3 scripts/standalone-agent-smoke.py \
+  --web-url http://127.0.0.1:3000 \
+  --token-file data/standalone/config/login-token \
+  --provider YOUR_PROVIDER --model YOUR_MODEL --timeout 180
+```
+
+The runner submits one read-only research request. It verifies an actual internal `list_instruments(size=1)` call against the database, its successful audit record, and a final answer citing the returned code. It rejects extra tools, approvals and invented results. It archives its own Session, cancels its own unfinished Run on failure or timeout, and emits only bounded JSON evidence, without credentials or conversation text. It does not change provider configuration or retry a submitted Run. Keep this model check off shared business installations.
+
+Re-running the installer preserves credentials, stored data, enabled profiles, and API/Web business settings. Agent connection and profile configuration is regenerated from the current image; review any custom Agent changes after an update.
+
+`scripts/mcp-live-test.py` exercises every tool against a database containing imported bars and event/news records. It creates specifically named Smoke strategies, pipelines and a small backtest; it does not modify existing objects or deliver notifications. An empty database cannot satisfy individual event/news reads, so the script reports missing happy-path coverage rather than claiming all tools succeeded.

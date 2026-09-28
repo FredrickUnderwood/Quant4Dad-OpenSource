@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/authorization-v1/protected-header.schema.json",
+  "type": "object",
+  "required": [
+    "alg",
+    "typ",
+    "kid"
+  ],
+  "properties": {
+    "alg": {
+      "const": "Ed25519"
+    },
+    "typ": {
+      "const": "q4d-run-capability-v1+jwt"
+    },
+    "kid": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    }
+  },
+  "additionalProperties": false
+}

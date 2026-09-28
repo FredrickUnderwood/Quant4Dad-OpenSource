@@ -1,0 +1,33 @@
+{
+  "name": "MA金叉买入，跌5%止损",
+  "description": "MA5 上穿 MA20 全仓买入；持仓中如果价格相对入场价跌破 5% 立即止损；MA5 下穿 MA20 死叉清仓。",
+  "universe": ["sh.600519"],
+  "period": "1d",
+  "body": {
+    "indicators": [
+      { "alias": "ma5",  "type": "MA", "params": { "period": 5  } },
+      { "alias": "ma20", "type": "MA", "params": { "period": 20 } }
+    ],
+    "rules": [
+      {
+        "name": "金叉买入",
+        "when": { "all": [
+          { "cross_up": ["ma5", "ma20"] },
+          { "not": { "has_position": null } }
+        ]},
+        "then": { "action": "buy", "size": { "pct_of_cash": 1.0 } }
+      },
+      {
+        "name": "止损5%",
+        "when": { "lt": [ { "ratio_from_entry": "close" }, 0.95 ] },
+        "then": { "action": "sell", "size": "all" }
+      },
+      {
+        "name": "死叉清仓",
+        "when": { "cross_down": ["ma5", "ma20"] },
+        "then": { "action": "sell", "size": "all" }
+      }
+    ],
+    "execution": { "fill_at": "next_open" }
+  }
+}

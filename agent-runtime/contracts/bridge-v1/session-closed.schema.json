@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/session-closed.schema.json",
+  "type": "object",
+  "required": ["session_id", "dsh_session_id", "durable", "loaded"],
+  "properties": {
+    "session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "dsh_session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "durable": { "const": true },
+    "loaded": { "const": false }
+  },
+  "additionalProperties": false
+}

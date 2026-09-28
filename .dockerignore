@@ -1,0 +1,41 @@
+.git/
+.idea/
+.vscode/
+.claude/
+doc/
+*.md
+README*
+
+# Local runtime artifacts
+/data/
+/logs/
+*.db
+*.sqlite*
+*.log
+
+# Build output
+**/node_modules/
+/agent-runtime/.tmp/
+/web/dist/
+*.tsbuildinfo
+/bin/
+/build/
+/dist/
+/quant4dad
+/quant4dad-*
+
+# Tests / coverage
+*.test
+*.out
+coverage.*
+
+# Local config / secrets
+.env
+.env.*
+/config/*.local.yaml
+/config/local/
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db

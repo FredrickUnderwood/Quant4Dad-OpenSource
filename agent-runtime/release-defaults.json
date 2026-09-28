@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "channel": "edge",
+  "q4d_version": "0.0.0",
+  "adapter_version": "bridge-v1",
+  "dsh_version": "0.1.2-alpha.5",
+  "bridge_protocol": 1,
+  "session_format": 0,
+  "event_journal_format": 1,
+  "session_binding_format": 1
+}

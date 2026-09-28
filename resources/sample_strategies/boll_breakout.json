@@ -1,0 +1,27 @@
+{
+  "name": "布林带突破",
+  "description": "收盘价突破布林带上轨买入，跌回中轨卖出。",
+  "universe": ["sh.600519"],
+  "period": "1d",
+  "body": {
+    "indicators": [
+      { "alias": "boll", "type": "BOLL", "params": { "period": 20, "mult": 2.0 } }
+    ],
+    "rules": [
+      {
+        "name": "突破上轨",
+        "when": { "all": [
+          { "gt": ["close", "boll.upper"] },
+          { "not": { "has_position": null } }
+        ]},
+        "then": { "action": "buy", "size": { "pct_of_cash": 1.0 } }
+      },
+      {
+        "name": "跌回中轨",
+        "when": { "lt": ["close", "boll.mid"] },
+        "then": { "action": "sell", "size": "all" }
+      }
+    ],
+    "execution": { "fill_at": "next_open" }
+  }
+}

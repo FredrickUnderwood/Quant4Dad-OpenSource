@@ -1,0 +1,12 @@
+{
+  "name": "脚本示例：MA20 上下穿",
+  "description": "脚本模式（Starlark）。逐根 K 线在 on_bar(ctx) 里用 ctx.history 自算 20 日均线：收盘上穿 MA20 半仓买入，跌破 MA20 清仓。等价于配置模式但逻辑全在代码里。",
+  "universe": ["sh.600519"],
+  "period": "1d",
+  "body": {
+    "mode": "script",
+    "lang": "starlark",
+    "code": "def on_bar(ctx):\n    closes = ctx.history(\"close\", 20)\n    if len(closes) < 20:\n        return None\n    ma20 = sum(closes) / len(closes)\n    if not ctx.has_position and ctx.close > ma20:\n        return buy(pct_of_cash=0.5)\n    if ctx.has_position and ctx.close < ma20:\n        return sell(\"all\")\n    return None\n",
+    "execution": { "fill_at": "next_open" }
+  }
+}

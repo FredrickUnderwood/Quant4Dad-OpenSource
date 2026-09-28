@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/session-created.schema.json",
+  "type": "object",
+  "required": ["session_id", "dsh_session_id", "durable", "provider", "model", "profile", "created_profile_revision", "created_model_config_revision", "provision_request_hash", "runtime_provenance"],
+  "properties": {
+    "session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "dsh_session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "durable": { "const": true },
+    "provider": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$" },
+    "model": { "type": "string", "pattern": "^[A-Za-z0-9_./:-]{1,128}$" },
+    "profile": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "created_profile_revision": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "created_model_config_revision": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "provision_request_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "runtime_provenance": {
+      "type": "object",
+      "required": ["bridge_protocol", "adapter_version", "backend", "dsh_version", "session_format", "event_journal_format", "session_binding_format"],
+      "properties": {
+        "bridge_protocol": { "const": 1 },
+        "adapter_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "backend": { "enum": ["acp", "cordis"] },
+        "dsh_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "session_format": { "type": "integer", "minimum": 0 },
+        "event_journal_format": { "const": 1 },
+        "session_binding_format": { "const": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

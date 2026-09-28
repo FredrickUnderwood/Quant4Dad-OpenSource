@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/tool-event.schema.json",
+  "title": "Q4D trusted Tool lifecycle payloads (no credentials)",
+  "type": "object",
+  "required": [
+    "type",
+    "data"
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "tool.proposed"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tool_call_id",
+            "name",
+            "arguments",
+            "idempotency_key",
+            "source_seq"
+          ],
+          "properties": {
+            "tool_call_id": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "arguments": {
+              "type": "object"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^q4d:[A-Za-z0-9_-]+:[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "source_seq": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "arguments_omitted": {
+              "const": true
+            }
+          },
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "arguments_omitted"
+                ],
+                "properties": {
+                  "arguments_omitted": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "arguments": {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "approval.required"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tool_call_id",
+            "name",
+            "approval_id",
+            "arguments_hash",
+            "risk",
+            "expires_at"
+          ],
+          "properties": {
+            "tool_call_id": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "approval_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "arguments_hash": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "risk": {
+              "enum": [
+                "R2",
+                "R3"
+              ]
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tool.started"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tool_call_id"
+          ],
+          "properties": {
+            "tool_call_id": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tool.completed"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tool_call_id"
+          ],
+          "properties": {
+            "tool_call_id": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "tool.failed"
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tool_call_id",
+            "code"
+          ],
+          "properties": {
+            "tool_call_id": {
+              "type": "string",
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            },
+            "code": {
+              "type": "string",
+              "pattern": "^agent_[a-z_]+$"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+FROM golang:1.26.8-alpine3.24 AS build
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV CGO_ENABLED=1
+RUN apk add --no-cache build-base
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -trimpath -ldflags="-s -w" -o /out/quant4dad-mcp ./cmd/quant4dad-mcp
+
+FROM alpine:3.24.1
+RUN apk add --no-cache ca-certificates tzdata \
+    && mkdir -p /app/data && chmod 1777 /app/data
+WORKDIR /app
+COPY --from=build /out/quant4dad-mcp /app/quant4dad-mcp
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/app/quant4dad-mcp", "-http"]

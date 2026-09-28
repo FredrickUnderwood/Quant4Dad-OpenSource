@@ -1,0 +1,30 @@
+FROM node:24.20.0-bookworm-slim AS runtime
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl perl tar \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 q4d && useradd --uid 10001 --gid 10001 --no-create-home q4d
+WORKDIR /opt/q4d/agent-runtime
+COPY agent-runtime/package.json agent-runtime/package-lock.json ./
+RUN npm ci --ignore-scripts --registry="${NPM_CONFIG_REGISTRY}"
+COPY agent-runtime ./
+ENV Q4D_DSH_CACHE_DIR=/opt/q4d/upstream TMPDIR=/tmp
+# The source archive and dependency graph are frozen independently. No install
+# scripts or npm-published mixed DSH graph enters the runtime image.
+# Limit registry pressure and allow slow tarball downloads on the build network.
+RUN source_dir="$(scripts/fetch-dsh-source.sh)" \
+    && node_modules/.bin/pnpm --dir "$source_dir" install --frozen-lockfile --ignore-scripts \
+       --network-concurrency=8 --fetch-timeout=180000 --fetch-retries=4 \
+       --fetch-retry-factor=2 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 \
+       --pm-on-fail=ignore --registry="${NPM_CONFIG_REGISTRY}" --store-dir=/tmp/pnpm-store \
+    && scripts/fetch-dsh-source.sh >/dev/null \
+    && Q4D_DSH_SOURCE_DIR="$source_dir" node scripts/check-bootstrap-types.mjs \
+    && rm -rf /tmp/pnpm-store /root/.npm \
+    && chown -R 10001:10001 /opt/q4d
+# Compose may select a local unprivileged UID. Keep immutable program files
+# readable by that deployment owner without changing private runtime mounts.
+# Runtime credentials and state are private bind mounts, never image contents.
+RUN chmod -R a+rX /opt/q4d
+USER 10001:10001
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["bash", "/opt/q4d/agent-runtime/scripts/start-runtime.sh"]
+CMD ["/run/q4d-config/runtime.json"]

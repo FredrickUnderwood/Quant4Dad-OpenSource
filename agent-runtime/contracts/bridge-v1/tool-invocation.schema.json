@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/tool-invocation.schema.json",
+  "title": "Adapter-owned logical Tool invocation (contains no credentials)",
+  "type": "object",
+  "required": ["session_id", "run_id", "tool_call_id", "idempotency_key", "name", "arguments"],
+  "properties": {
+    "session_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "tool_call_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "idempotency_key": { "type": "string", "pattern": "^q4d:[A-Za-z0-9_-]+:[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "name": { "type": "string", "minLength": 1 },
+    "arguments": { "type": "object" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@quant4dad/agent-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.20.0 <25"
+  },
+  "scripts": {
+    "start": "bash scripts/start-runtime.sh",
+    "test": "npm run test:contracts",
+    "test:contracts": "node --test --test-timeout=15000 'evals/fixture-v1/contracts/**/*.test.mjs'",
+    "test:upstream": "scripts/run-upstream-conformance.sh",
+    "test:control": "node --test evals/fixture-v1/control/*.test.mjs"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "pnpm": "11.25.0",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "q4d_session_id": "01K4DADSESSION",
+  "run_id": "01K4DADRUN",
+  "client_request_id": "01K4DADREQUEST",
+  "request_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "run_capability": "fixture-capability",
+  "execution_envelope_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "content": [
+    { "type": "text", "text": "分析 000001 最近两日走势" }
+  ]
+}

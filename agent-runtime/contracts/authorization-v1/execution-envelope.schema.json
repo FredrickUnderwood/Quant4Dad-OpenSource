@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/authorization-v1/execution-envelope.schema.json",
+  "type": "object",
+  "required": [
+    "run_id",
+    "client_request_id",
+    "actor_id",
+    "q4d_version",
+    "agent_image_digest",
+    "agent_runtime_version",
+    "bridge_protocol",
+    "dsh_version",
+    "adapter_version",
+    "product_profile",
+    "profile_revision",
+    "prompt_bundle_digest",
+    "skills_digest",
+    "tool_catalog_revision",
+    "provider",
+    "model",
+    "model_config_revision",
+    "budgets"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "client_request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "q4d_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.+-]{1,128}(?![\\s\\S])"
+    },
+    "agent_image_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "agent_runtime_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.+-]{1,128}(?![\\s\\S])"
+    },
+    "bridge_protocol": {
+      "const": 1
+    },
+    "dsh_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.+-]{1,128}(?![\\s\\S])"
+    },
+    "adapter_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.+-]{1,128}(?![\\s\\S])"
+    },
+    "product_profile": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "profile_revision": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "prompt_bundle_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "skills_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "tool_catalog_revision": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "provider": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,128}(?![\\s\\S])"
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_./:-]{1,128}(?![\\s\\S])"
+    },
+    "model_config_revision": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "budgets": {
+      "type": "object",
+      "required": [
+        "max_turns",
+        "max_tool_calls",
+        "max_input_tokens",
+        "max_output_tokens",
+        "wall_time_ms"
+      ],
+      "properties": {
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "max_tool_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "wall_time_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

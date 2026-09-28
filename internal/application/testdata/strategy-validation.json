@@ -1,0 +1,524 @@
+{
+  "fixture_prefix": "oss-validation-fixture",
+  "cases": [
+    {
+      "id": "01-noop",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-01-noop",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    result = None\n    return result\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": true,
+          "receipt": true,
+          "checks": [
+            "structure",
+            "starlark_compile",
+            "synthetic_smoke"
+          ],
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "passed",
+              "attempted": 256,
+              "signals": {
+                "buy": 0,
+                "sell": 0,
+                "none": 256
+              }
+            },
+            "behavior": {
+              "status": "not_requested"
+            },
+            "branch_coverage_measured": false
+          },
+          "warnings_contain": [
+            "No buy or sell signal was observed",
+            "No behavior suite was requested"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "02-one-day-roundtrip",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-02-one-day-roundtrip",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    if sample.has_position:\n        if sample.days_held <= 0:\n            return None\n        return sell(\"all\")\n    return buy(shares=100)\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": true,
+          "receipt": true,
+          "checks": [
+            "structure",
+            "starlark_compile",
+            "synthetic_smoke",
+            "behavior_tests"
+          ],
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "passed"
+            },
+            "behavior": {
+              "status": "passed"
+            },
+            "branch_coverage_measured": false
+          },
+          "behavior_tests": [
+            "flat_buy_100_exit_after_one_day"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "03-wrong-order-quantity",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-03-wrong-order-quantity",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    if sample.has_position:\n        if sample.days_held <= 0:\n            return None\n        return sell(\"all\")\n    return buy(shares=200)\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "behavior_tests": [
+            "flat_buy_100_exit_after_one_day"
+          ],
+          "error_path": "body.code",
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "passed"
+            },
+            "behavior": {
+              "status": "failed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "04-unclosed-expression",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-04-unclosed-expression",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    return (\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "failed",
+            "smoke": {
+              "status": "not_run"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-module-load-disallowed",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-05-module-load-disallowed",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "load(\"not_a_real_module.star\", \"example\")\ndef on_bar(sample):\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "failed",
+            "smoke": {
+              "status": "not_run"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "06-python-import-disallowed",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-06-python-import-disallowed",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "import example_module\ndef on_bar(sample):\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "failed",
+            "smoke": {
+              "status": "not_run"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "07-wrong-entry-signature",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-07-wrong-entry-signature",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample, required_argument):\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "failed",
+            "smoke": {
+              "status": "not_run"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "08-invalid-signal-type",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-08-invalid-signal-type",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    return 17\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "failed"
+            },
+            "behavior": {
+              "status": "not_requested"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "09-runtime-division-by-zero",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-09-runtime-division-by-zero",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    zero = sample.volume - sample.volume\n    unused = 1.0 / zero\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "failed"
+            },
+            "behavior": {
+              "status": "not_requested"
+            }
+          },
+          "error_contains": "division by zero"
+        }
+      ]
+    },
+    {
+      "id": "10-execution-budget",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-10-execution-budget",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    total = 0\n    for value in range(2000000):\n        total += value\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "failed"
+            },
+            "behavior": {
+              "status": "not_requested"
+            }
+          },
+          "error_contains": "too many steps"
+        }
+      ]
+    },
+    {
+      "id": "11-module-initialization-budget",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-11-module-initialization-budget",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def exhaust_budget():\n    total = 0\n    for value in range(2000000):\n        total += value\n    return total\nunused = exhaust_budget()\ndef on_bar(sample):\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "failed",
+            "smoke": {
+              "status": "not_run"
+            }
+          },
+          "error_contains": "too many steps"
+        }
+      ]
+    },
+    {
+      "id": "12-frozen-state",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-12-frozen-state",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "observations = []\ndef on_bar(sample):\n    observations.append(sample.index)\n    return None\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "valid": false,
+          "receipt": false,
+          "error_path": "body.code",
+          "report": {
+            "compile": "passed",
+            "smoke": {
+              "status": "failed"
+            },
+            "behavior": {
+              "status": "not_requested"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "13-unknown-body-field",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-13-unknown-body-field",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    result = None\n    return result\n",
+              "execution": {
+                "fill_at": "next_open"
+              },
+              "unsupported_option": true
+            }
+          },
+          "schema_rejected": true
+        }
+      ]
+    },
+    {
+      "id": "14-universe-item-wrong-type",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-14-universe-item-wrong-type",
+            "universe": [
+              7
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    result = None\n    return result\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "schema_rejected": true
+        }
+      ]
+    },
+    {
+      "id": "15-unsupported-script-language",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-15-unsupported-script-language",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "python",
+              "code": "def on_bar(sample):\n    result = None\n    return result\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "schema_rejected": true
+        }
+      ]
+    },
+    {
+      "id": "16-unknown-behavior-suite",
+      "validation_assertions": [
+        {
+          "strategy": {
+            "name": "{{fixture_prefix}}-16-unknown-behavior-suite",
+            "universe": [
+              "sh.600000"
+            ],
+            "period": "1d",
+            "body": {
+              "mode": "script",
+              "lang": "starlark",
+              "code": "def on_bar(sample):\n    result = None\n    return result\n",
+              "execution": {
+                "fill_at": "next_open"
+              }
+            }
+          },
+          "schema_rejected": true,
+          "behavior_tests": [
+            "unsupported_fixture_suite"
+          ]
+        }
+      ]
+    }
+  ]
+}

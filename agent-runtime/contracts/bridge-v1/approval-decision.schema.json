@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/approval-decision.schema.json",
+  "type": "object",
+  "required": ["run_id", "tool_call_id", "decision"],
+  "properties": {
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "tool_call_id": { "type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+    "decision": { "enum": ["allow_once", "reject"] },
+    "approval_receipt": { "type": "string", "pattern": "^[!-~]{1,8192}$" }
+  },
+  "allOf": [{
+    "if": { "properties": { "decision": { "const": "allow_once" } } },
+    "then": { "properties": { "approval_receipt": true }, "required": ["approval_receipt"] },
+    "else": { "not": { "properties": { "approval_receipt": true }, "required": ["approval_receipt"] } }
+  }],
+  "additionalProperties": false
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "selected_artifact": "source-archive",
+  "source": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "tag": "dsh-v0.1.2-alpha.5",
+    "url": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.1.2-alpha.5",
+    "sha256": "04173836e56a153c6f34fe2631555cd4c48c4979774cdd2890140fa0182491eb",
+    "lockfile_sha256": "e12083149a77f790d39b64d018b6b8745c6a7aa95777ecb73e0a2f5ed5fdd0d9",
+    "package_manager": "pnpm@11.7.0",
+    "installer": "pnpm@11.25.0",
+    "install": "pnpm install --frozen-lockfile --ignore-scripts --pm-on-fail=ignore",
+    "installer_override_reason": "Use the patched installer without rewriting the upstream package manifest or dependency lockfile."
+  },
+  "rejected_npm_artifact": {
+    "package": "@deepseek-ai/dsh@0.1.2-alpha.5",
+    "sha1": "54768e9e5a757721e123fd2a2196723a26e5c610",
+    "sha256": "c6d469e0227c59b0aee80a19c4a032f44b263e2d4eb5d44701704ed5afc1371b",
+    "reason": "Published prerelease dependency ranges currently resolve a mixed alpha.5/rc.1 DSH graph."
+  }
+}

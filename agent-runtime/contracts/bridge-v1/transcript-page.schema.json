@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/transcript-page.schema.json",
+  "title": "Q4D Bridge v1 paginated conversation archive",
+  "type": "object",
+  "required": ["session_id", "snapshot_seq", "items", "has_more", "next_before_seq"],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": { "type": "string", "minLength": 1 },
+    "snapshot_seq": { "$ref": "#/$defs/seq" },
+    "has_more": { "type": "boolean" },
+    "next_before_seq": { "oneOf": [{ "$ref": "#/$defs/seq" }, { "type": "null" }] },
+    "items": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["seq", "message_id", "run_id", "role", "occurred_at", "content", "omitted_content"],
+        "additionalProperties": false,
+        "properties": {
+          "seq": { "$ref": "#/$defs/seq" },
+          "message_id": { "type": "string", "minLength": 1 },
+          "run_id": { "type": "string", "minLength": 1 },
+          "role": { "enum": ["user", "assistant", "tool"] },
+          "occurred_at": { "type": "string", "format": "date-time" },
+          "omitted_content": { "type": "boolean" },
+          "content": { "type": "array", "items": { "oneOf": [
+            { "$ref": "#/$defs/text" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "name", "arguments"],
+              "properties": { "type": { "const": "tool_request" }, "name": { "type": "string" }, "arguments": { "type": "string" } }
+            },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "is_error", "content"],
+              "properties": { "type": { "const": "tool_result" }, "is_error": { "type": "boolean" },
+                "content": { "type": "array", "items": { "$ref": "#/$defs/text" } } }
+            }
+          ] } }
+        }
+      }
+    }
+  },
+  "allOf": [{ "if": { "properties": { "has_more": { "const": true } } },
+    "then": { "properties": { "next_before_seq": { "$ref": "#/$defs/seq" }, "items": { "type": "array", "minItems": 1 } } },
+    "else": { "properties": { "next_before_seq": { "type": "null" } } }
+  }],
+  "$defs": {
+    "seq": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})$" },
+    "text": { "type": "object", "additionalProperties": false, "required": ["type", "text"],
+      "properties": { "type": { "const": "text" }, "text": { "type": "string" } } }
+  }
+}

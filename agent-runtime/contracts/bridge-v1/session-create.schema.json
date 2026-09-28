@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/session-create.schema.json",
+  "type": "object",
+  "required": ["q4d_session_id", "provider", "model", "profile", "profile_revision", "model_config_revision", "provision_request_hash"],
+  "properties": {
+    "q4d_session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "provider": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$" },
+    "model": { "type": "string", "pattern": "^[A-Za-z0-9_./:-]{1,128}$" },
+    "profile": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "profile_revision": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "model_config_revision": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "provision_request_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+{
+  "name": "RSI 超卖反弹",
+  "description": "RSI(14) 跌破 30 且当前无持仓时买入；RSI 上穿 70 全部卖出。配合 20% 止损保护。",
+  "universe": ["sh.600519", "sz.000001"],
+  "period": "1d",
+  "body": {
+    "indicators": [
+      { "alias": "rsi", "type": "RSI", "params": { "period": 14 } }
+    ],
+    "rules": [
+      {
+        "name": "超卖买入",
+        "when": { "all": [
+          { "lt": ["rsi", 30] },
+          { "not": { "has_position": null } }
+        ]},
+        "then": { "action": "buy", "size": { "pct_of_cash": 0.5 } }
+      },
+      {
+        "name": "超买卖出",
+        "when": { "gt": ["rsi", 70] },
+        "then": { "action": "sell", "size": "all" }
+      },
+      {
+        "name": "兜底止损20%",
+        "when": { "lt": [{ "ratio_from_entry": "close" }, 0.8] },
+        "then": { "action": "sell", "size": "all" }
+      }
+    ],
+    "execution": { "fill_at": "next_open" }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "run.started": {
+    "message_id": "message-1",
+    "execution_envelope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "message.delta": {
+    "message_id": "answer-1",
+    "text": "answer"
+  },
+  "message.completed": {
+    "message_id": "answer-1",
+    "text": "answer"
+  },
+  "tool.proposed": {
+    "tool_call_id": "01K4M000000000000000000000",
+    "source_seq": "5",
+    "name": "query_kline",
+    "arguments": {},
+    "idempotency_key": "q4d:run-1:01K4M000000000000000000000"
+  },
+  "approval.required": {
+    "tool_call_id": "01K4M000000000000000000000",
+    "name": "query_kline",
+    "approval_id": "approval-1",
+    "arguments_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "risk": "R3",
+    "expires_at": "2026-09-09T01:00:00.000Z"
+  },
+  "tool.started": {
+    "tool_call_id": "01K4M000000000000000000000"
+  },
+  "tool.completed": {
+    "tool_call_id": "01K4M000000000000000000000"
+  },
+  "tool.failed": {
+    "tool_call_id": "01K4M000000000000000000000",
+    "code": "agent_tool_failed"
+  },
+  "usage.updated": {
+    "message_id": "answer-1",
+    "usage": {
+      "input_tokens": 8,
+      "output_tokens": 4
+    }
+  },
+  "context.compacted": {
+    "source_seq": "25"
+  },
+  "run.completed": {},
+  "run.failed": {
+    "code": "agent_model_error",
+    "retryable": false
+  },
+  "run.interrupted": {
+    "code": "agent_runtime_interrupted",
+    "retryable": false
+  },
+  "run.cancelled": {
+    "reason": "user"
+  },
+  "heartbeat": {},
+  "run.progress": {
+    "stage": "output_recovery"
+  }
+}

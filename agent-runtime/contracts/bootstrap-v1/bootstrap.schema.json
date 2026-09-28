@@ -1,0 +1,360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bootstrap-v1/bootstrap.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "revision",
+    "model_config_revision",
+    "providers",
+    "mcp",
+    "capability"
+  ],
+  "properties": {
+    "tool_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "revision",
+        "tools"
+      ],
+      "properties": {
+        "profile": {
+          "const": "research"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+        },
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 28,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "description",
+              "inputSchema",
+              "outputSchema",
+              "risk",
+              "timeout_ms",
+              "max_result_bytes"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,127}$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "inputSchema": {
+                "type": "object"
+              },
+              "outputSchema": {
+                "type": "object"
+              },
+              "risk": {
+                "enum": [
+                  "R0",
+                  "R1",
+                  "R2",
+                  "R3"
+                ]
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30000
+              },
+              "max_result_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 131072
+              }
+            }
+          }
+        }
+      }
+    },
+    "protocol_version": {
+      "const": "q4d-bootstrap-v1"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}\\.[0-9a-f]{32}(?![\\s\\S])"
+    },
+    "model_config_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}(?![\\s\\S])"
+    },
+    "providers": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "base_url",
+          "default_model",
+          "api_key",
+          "agent"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,128}(?![\\s\\S])"
+          },
+          "type": {
+            "enum": [
+              "openai",
+              "anthropic"
+            ]
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "default_model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_./:-]{1,128}(?![\\s\\S])"
+          },
+          "api_key": {
+            "type": "string",
+            "maxLength": 8192,
+            "pattern": "^[^\\p{Cc}]*(?![\\s\\S])"
+          },
+          "agent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "protocol",
+              "context_window",
+              "max_output_tokens"
+            ],
+            "properties": {
+              "enabled": {
+                "const": true
+              },
+              "protocol": {
+                "enum": [
+                  "openai-completions",
+                  "anthropic-messages"
+                ]
+              },
+              "context_window": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000000
+              },
+              "max_output_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000000
+              },
+              "reasoning_effort": {
+                "type": "string",
+                "maxLength": 32,
+                "pattern": "^[^\\p{Cc}]*(?![\\s\\S])"
+              }
+            }
+          }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "runtime_token",
+        "connect_timeout_ms",
+        "tool_timeout_ms"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "runtime_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.~+/=-]{32,256}(?![\\s\\S])"
+        },
+        "connect_timeout_ms": {
+          "const": 5000
+        },
+        "tool_timeout_ms": {
+          "const": 30000
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "algorithm",
+        "token_type",
+        "public_keys"
+      ],
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:/-]{1,128}(?![\\s\\S])"
+        },
+        "algorithm": {
+          "const": "Ed25519"
+        },
+        "token_type": {
+          "const": "q4d-run-capability-v1+jwt"
+        },
+        "public_keys": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}(?![\\s\\S])"
+          }
+        }
+      }
+    },
+    "tool_catalogs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "profile",
+          "revision",
+          "tools"
+        ],
+        "properties": {
+          "profile": {
+            "enum": [
+              "research",
+              "strategy_lab",
+              "pipeline_builder"
+            ]
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+          },
+          "tools": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 28,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "description",
+                "inputSchema",
+                "outputSchema",
+                "risk",
+                "timeout_ms",
+                "max_result_bytes"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,127}$"
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "inputSchema": {
+                  "type": "object"
+                },
+                "outputSchema": {
+                  "type": "object"
+                },
+                "risk": {
+                  "enum": [
+                    "R0",
+                    "R1",
+                    "R2",
+                    "R3"
+                  ]
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 30000
+                },
+                "max_result_bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 131072
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "revision",
+          "promptBundleDigest",
+          "skillsDigest",
+          "toolCatalogRevision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+          },
+          "promptBundleDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+          },
+          "skillsDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+          },
+          "toolCatalogRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+              },
+              {
+                "const": ""
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

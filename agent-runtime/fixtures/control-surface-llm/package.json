@@ -1,0 +1,11 @@
+{
+  "name": "@quant4dad/dsh-control-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-llm": "0.1.2-alpha.5"
+  }
+}

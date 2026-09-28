@@ -1,0 +1,105 @@
+name: ${Q4D_PROJECT_NAME:-quant4dad-opensource}
+services:
+  api:
+    image: ${Q4D_API_IMAGE:-quant4dad-opensource-api:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    user: "${Q4D_UID:-1000}:${Q4D_GID:-1000}"
+    command: [--config, /app/config/api.yaml, '--skip-migration=${Q4D_SKIP_MIGRATION:-false}', '--skip-seed=${Q4D_SKIP_SEED:-false}', '--no-background=${Q4D_NO_BACKGROUND:-false}']
+    environment:
+      TZ: ${Q4D_TIMEZONE:-Asia/Shanghai}
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ${Q4D_STATE_DIR:-../data/standalone}/config/api.yaml:/app/config/api.yaml:ro
+      - ${Q4D_STATE_DIR:-../data/standalone}/data:/app/data
+    healthcheck:
+      test: [CMD, /app/quant4dad, --check-ready, 'http://127.0.0.1:8080/readyz']
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 10s
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  web:
+    image: ${Q4D_WEB_IMAGE:-quant4dad-opensource-web:local}
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    user: "${Q4D_UID:-1000}:${Q4D_GID:-1000}"
+    command: [--config, /app/config/web.yaml]
+    environment:
+      TZ: ${Q4D_TIMEZONE:-Asia/Shanghai}
+    ports: ['${Q4D_BIND:-127.0.0.1}:${Q4D_WEB_PORT:-3000}:8080']
+    volumes:
+      - ${Q4D_STATE_DIR:-../data/standalone}/config/web.yaml:/app/config/web.yaml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  mcp:
+    profiles: [mcp]
+    image: ${Q4D_MCP_IMAGE:-quant4dad-opensource-mcp:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.mcp
+    user: "${Q4D_UID:-1000}:${Q4D_GID:-1000}"
+    command: [--config, /app/config/mcp.yaml]
+    environment:
+      TZ: ${Q4D_TIMEZONE:-Asia/Shanghai}
+    ports: ['${Q4D_BIND:-127.0.0.1}:${Q4D_MCP_PORT:-8090}:8080']
+    volumes:
+      - ${Q4D_STATE_DIR:-../data/standalone}/config/mcp.yaml:/app/config/mcp.yaml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, /app/quant4dad-mcp, --check-ready, 'http://127.0.0.1:8080/readyz']
+      interval: 5s
+      timeout: 4s
+      retries: 20
+  agent:
+    profiles: [agent]
+    image: ${Q4D_AGENT_IMAGE:-quant4dad-opensource-agent:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.agent
+    user: "${Q4D_UID:-1000}:${Q4D_GID:-1000}"
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    cpus: 1
+    stop_grace_period: 25s
+    environment:
+      Q4D_AGENT_CONTROL_TOKEN_FILE: /run/q4d-config/control-token
+      Q4D_AGENT_BRIDGE_TOKEN_FILE: /run/q4d-config/bridge-token
+    volumes:
+      - ${Q4D_STATE_DIR:-../data/standalone}/agent/config:/run/q4d-config:ro
+      - ${Q4D_STATE_DIR:-../data/standalone}/agent/data:/var/lib/q4d-agent
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m,mode=1777
+      - /run/q4d-snapshots:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=${Q4D_UID:-1000},gid=${Q4D_GID:-1000}
+    healthcheck:
+      test: [CMD, node, /opt/q4d/agent-runtime/scripts/healthcheck.mjs, /run/q4d-config/runtime.json]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s

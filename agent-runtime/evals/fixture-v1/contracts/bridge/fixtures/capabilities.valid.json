@@ -1,0 +1,19 @@
+{
+  "bridge_protocol": 1,
+  "adapter_version": "0.1.0",
+  "backend": "acp",
+  "dsh_version": "0.1.2-alpha.5",
+  "session_format": 0,
+  "event_journal_format": 1,
+  "features": {
+    "session_resume": true,
+    "event_replay": true,
+    "cancel": true,
+    "approval": true,
+    "raw_provider_delta": false,
+    "compaction_events": false,
+    "fork": false
+  },
+  "model_config_revision": "01K4DADREVISION",
+  "future_extension": "ignored-by-v1-clients"
+}

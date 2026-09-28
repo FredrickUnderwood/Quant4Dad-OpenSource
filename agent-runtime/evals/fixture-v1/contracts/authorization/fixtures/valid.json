@@ -1,0 +1,51 @@
+{
+  "envelope": {
+    "run_id": "run-1",
+    "client_request_id": "client-run-1",
+    "actor_id": "local-user",
+    "q4d_version": "0.0.0",
+    "agent_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "agent_runtime_version": "fixture-v1",
+    "bridge_protocol": 1,
+    "dsh_version": "0.1.2-alpha.5",
+    "adapter_version": "fixture-v1",
+    "product_profile": "research",
+    "profile_revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prompt_bundle_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "skills_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "tool_catalog_revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "provider": "q4d-control-fixture",
+    "model": "alpha",
+    "model_config_revision": "fixture-v1",
+    "budgets": {
+      "max_turns": 12,
+      "max_tool_calls": 20,
+      "max_input_tokens": 120000,
+      "max_output_tokens": 8192,
+      "wall_time_ms": 300000
+    }
+  },
+  "execution_envelope_digest": "sha256:65580cb8f66b56833b337cb3708af58593763d1dc8b5e671895313d1d8414b6d",
+  "prompt_cases": [
+    {
+      "text": "query",
+      "request_hash": "sha256:6e4334b7ca86555c620ea1593339b20cc278533359646e2fff7b5a23e18c09f1"
+    },
+    {
+      "text": "你好 😀\nquery",
+      "request_hash": "sha256:27d2b132bdcf1575f8a152f79a668b679abf52a5465cad05a2a3d4c0bd809aa8"
+    },
+    {
+      "text": "quote \" slash / backslash \\ control\u0000\t",
+      "request_hash": "sha256:c21e69818be9ae9391d232ca7aa883c8c05bda79554ed970b145bd0cf97762dc"
+    },
+    {
+      "text": "<>&  ",
+      "request_hash": "sha256:3cbc3a08d08feeabf648a006290171a5365933edc026321e82891b4cc1ab00c5"
+    },
+    {
+      "text": "é 与 é",
+      "request_hash": "sha256:7874ea7e28bf797f4cc0fe404fe977729f185462990855e137928ad5142849dc"
+    }
+  ]
+}

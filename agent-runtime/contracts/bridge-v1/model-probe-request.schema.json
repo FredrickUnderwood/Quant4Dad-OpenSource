@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/model-probe-request.schema.json",
+  "type": "object",
+  "required": [
+    "provider",
+    "model",
+    "model_config_revision",
+    "probe_version",
+    "force"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,128}(?![\\s\\S])"
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_./:-]{1,128}(?![\\s\\S])"
+    },
+    "model_config_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}(?![\\s\\S])"
+    },
+    "probe_version": {
+      "const": "echo-v1"
+    },
+    "force": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

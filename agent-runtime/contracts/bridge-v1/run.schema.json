@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/run.schema.json",
+  "type": "object",
+  "required": ["session_id", "run_id", "message_id", "execution_envelope_digest", "durable", "state", "terminal", "last_event_id"],
+  "properties": {
+    "session_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "execution_envelope_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "durable": { "type": "boolean" },
+    "state": { "enum": ["pending", "running", "waiting_approval", "cancelling", "recovering", "completed", "failed", "interrupted", "cancelled"] },
+    "terminal": { "type": "boolean" },
+    "last_event_id": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+  },
+  "additionalProperties": false
+}

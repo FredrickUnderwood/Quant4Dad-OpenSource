@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/authorization-v1/run-capability.schema.json",
+  "type": "object",
+  "required": [
+    "iss",
+    "aud",
+    "iat",
+    "exp",
+    "jti",
+    "session_id",
+    "request_hash",
+    "execution_envelope_digest",
+    "envelope",
+    "allowed_tools"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:/-]{1,128}(?![\\s\\S])"
+    },
+    "aud": {
+      "const": [
+        "q4d-agent-runtime",
+        "q4d-internal-mcp"
+      ]
+    },
+    "iat": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740
+    },
+    "exp": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740
+    },
+    "jti": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}(?![\\s\\S])"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+    },
+    "request_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "execution_envelope_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "envelope": {
+      "$ref": "execution-envelope.schema.json"
+    },
+    "allowed_tools": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,128}(?![\\s\\S])"
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant4dad.local/contracts/bridge-v1/prompt-response.schema.json",
+  "type": "object",
+  "required": ["run_id", "message_id", "durable", "state"],
+  "properties": {
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "durable": { "const": true },
+    "state": { "const": "accepted" }
+  },
+  "additionalProperties": false
+}
