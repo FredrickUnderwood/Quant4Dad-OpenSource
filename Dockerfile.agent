@@ -11,6 +11,9 @@ ENV Q4D_DSH_CACHE_DIR=/opt/q4d/upstream TMPDIR=/tmp
 # The source archive and dependency graph are frozen independently. No install
 # scripts or npm-published mixed DSH graph enters the runtime image.
 # Limit registry pressure and allow slow tarball downloads on the build network.
+# Compose may select a local unprivileged UID. Keep immutable program files
+# readable by that deployment owner without changing private runtime mounts.
+# Runtime credentials and state are private bind mounts, never image contents.
 RUN source_dir="$(scripts/fetch-dsh-source.sh)" \
     && node_modules/.bin/pnpm --dir "$source_dir" install --frozen-lockfile --ignore-scripts \
        --network-concurrency=8 --fetch-timeout=180000 --fetch-retries=4 \
@@ -19,11 +22,8 @@ RUN source_dir="$(scripts/fetch-dsh-source.sh)" \
     && scripts/fetch-dsh-source.sh >/dev/null \
     && Q4D_DSH_SOURCE_DIR="$source_dir" node scripts/check-bootstrap-types.mjs \
     && rm -rf /tmp/pnpm-store /root/.npm \
-    && chown -R 10001:10001 /opt/q4d
-# Compose may select a local unprivileged UID. Keep immutable program files
-# readable by that deployment owner without changing private runtime mounts.
-# Runtime credentials and state are private bind mounts, never image contents.
-RUN chmod -R a+rX /opt/q4d
+    && chown -R 10001:10001 /opt/q4d \
+    && chmod -R a+rX /opt/q4d
 USER 10001:10001
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["bash", "/opt/q4d/agent-runtime/scripts/start-runtime.sh"]
