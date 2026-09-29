@@ -1,6 +1,32 @@
 # Standalone deployment
 
-Quant4Dad runs without a deployment platform, configuration service, private SDK, or predefined domain. Docker with Compose v2.20 or newer and Bash are the host requirements. The first build downloads pinned public Go, npm and Python WASI dependencies; it can take several minutes. Agent Runtime additionally builds its pinned DeepSeek Harness source tree.
+Quant4Dad runs without a deployment platform, configuration service, private SDK, or predefined domain. Docker with Compose v2.20 or newer and Bash are the host requirements. Prebuilt images include the application and its dependencies; source builds download pinned public Go, npm and Python WASI dependencies. Agent Runtime additionally builds its pinned DeepSeek Harness source tree.
+
+## Docker Hub images
+
+The first Docker Hub release is pending publication. Until a release exists, use the Git/source installation below.
+
+Public image locations: [API](https://hub.docker.com/r/fredrick19/quant4dad-opensource-api), [Web](https://hub.docker.com/r/fredrick19/quant4dad-opensource-web), [MCP](https://hub.docker.com/r/fredrick19/quant4dad-opensource-mcp), [Agent](https://hub.docker.com/r/fredrick19/quant4dad-opensource-agent).
+
+Published releases provide [quant4dad-docker.tar.gz](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/releases/latest/download/quant4dad-docker.tar.gz). This small bundle contains the installer, Compose file and version-pinned image references; Git, Go, Node.js and a C compiler are not required on the host. Extract it, enter `quant4dad`, and run:
+
+```sh
+./scripts/install.sh --pull
+# Optional: enable both extensions with the same image release.
+./scripts/install.sh --pull --with-mcp --with-agent
+```
+
+`--pull` downloads every enabled service image before generating configuration or starting containers. A failed pull stops installation. Re-running the command preserves the enabled extensions, credentials and application data. To upgrade, extract the next bundle over the same installation directory and rerun it; keep `data/standalone` intact and back it up first. A custom state directory must be selected with the same `--state-dir` each time.
+
+From a source checkout, `./scripts/install.sh --pull` uses the public `fredrick19` images in `deploy/images.env`. To select a particular published version:
+
+```sh
+./scripts/install.sh --pull --image-prefix docker.io/fredrick19/quant4dad-opensource --image-tag v0.1.0
+```
+
+Replace the example tag with an existing release. Four images share the prefix: `-api`, `-web`, `-mcp`, and `-agent`; only enabled services are pulled. `--pull` and `--no-build` are mutually exclusive.
+
+## Build from Git
 
 From the repository root, deploy Web + API with SQLite:
 
@@ -70,6 +96,12 @@ Review and edit startup files locally as needed. Avoid `docker compose config` w
 
 ## Verification
 
+Installer image selection and pull-failure checks run without a Docker daemon:
+
+```sh
+python3 scripts/test-install.py
+```
+
 A read-only smoke check verifies login, Web-to-API proxying, core query routes, optional Agent routes, and the exact MCP catalog:
 
 ```sh
@@ -100,3 +132,15 @@ The runner submits one read-only research request. It verifies an actual interna
 Re-running the installer preserves credentials, stored data, enabled profiles, and API/Web business settings. Agent connection and profile configuration is regenerated from the current image; review any custom Agent changes after an update.
 
 `scripts/mcp-live-test.py` exercises every tool against a database containing imported bars and event/news records. It creates specifically named Smoke strategies, pipelines and a small backtest; it does not modify existing objects or deliver notifications. An empty database cannot satisfy individual event/news reads, so the script reports missing happy-path coverage rather than claiming all tools succeeded.
+
+## Publishing Docker releases
+
+Configure the GitHub repository variable `DOCKERHUB_USERNAME=fredrick19`, secret `DOCKERHUB_TOKEN` (write access to the four image repositories), and optionally `DOCKERHUB_NAMESPACE` for an organization. The `quant4dad-opensource-api`, `-web`, `-mcp`, and `-agent` repositories must be public for anonymous installation.
+
+Run **Publish Docker images** with a stable version such as `v0.1.0`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags. It attaches a small installer archive and SHA256 file to the GitHub release. A failed build or smoke check prevents publication of the combined release tags and download bundle.
+
+The archive includes version-pinned image names in `deploy/images.env`, installer, Compose configuration and license; it contains no source build context, credentials or user data. Local packaging is also available:
+
+```sh
+bash scripts/package-docker-release.sh docker.io/fredrick19/quant4dad-opensource v0.1.0 quant4dad-docker.tar.gz
+```

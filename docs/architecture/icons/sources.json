@@ -1,0 +1,68 @@
+{
+  "retrieved_on": "2026-09-29",
+  "icons": [
+    {
+      "name": "react",
+      "file": "react.svg",
+      "official_source": "https://github.com/facebook/react/blob/main/fixtures/dom/public/react-logo.svg",
+      "download_url": "https://raw.githubusercontent.com/facebook/react/main/fixtures/dom/public/react-logo.svg",
+      "sha256": "671afde83899249e6c2883b0d1592fc00886d3c0620d20bcab566cd2caa97f1a",
+      "bytes": 2883,
+      "original_file_preserved": true
+    },
+    {
+      "name": "mcp",
+      "file": "mcp.svg",
+      "official_source": "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/favicon.svg",
+      "download_url": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/favicon.svg",
+      "sha256": "f6f33e24e95846f9ae2582ab72c4eae7beec5ec52c13d767d9f342bf639dd3e6",
+      "bytes": 1095,
+      "original_file_preserved": true
+    },
+    {
+      "name": "go",
+      "file": "go.svg",
+      "official_source": "https://go.dev/blog/go-brand/Go-Logo/SVG/",
+      "download_url": "https://go.dev/blog/go-brand/Go-Logo/SVG/Go-Logo_Blue.svg",
+      "sha256": "17a5ebb9fccb8f707c65418c913d282d02b3b2774ce9613bc52236f983b8fa12",
+      "bytes": 2410,
+      "original_file_preserved": true
+    },
+    {
+      "name": "mysql",
+      "file": "mysql.svg",
+      "official_source": "https://labs.mysql.com/common/logos/mysql-logo.svg",
+      "download_url": "https://labs.mysql.com/common/logos/mysql-logo.svg",
+      "sha256": "974bf440a8a42e7783d3896cf9b326f3d73bc7305a27febf45cef0e91b53e595",
+      "bytes": 6072,
+      "original_file_preserved": true
+    },
+    {
+      "name": "sqlite",
+      "file": "sqlite.svg",
+      "official_source": "https://www.sqlite.org/images/sqlite370_banner.svg",
+      "download_url": "https://www.sqlite.org/images/sqlite370_banner.svg",
+      "sha256": "462c4ce8229b585dd6880cd308b121d9de63eb619db05e469598594e80d7b151",
+      "bytes": 12707,
+      "original_file_preserved": true
+    },
+    {
+      "name": "dsh",
+      "file": "dsh.svg",
+      "official_source": "https://github.com/deepseek-ai/deepseek-harness/tree/dsh-v0.1.2-alpha.5",
+      "download_url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/dsh-v0.1.2-alpha.5/website/public/favicon.svg",
+      "sha256": "035b68e57ac4490f6880e25f4e7f534d7b50b249308ccea77af34cc5d9e840c3",
+      "bytes": 3546,
+      "original_file_preserved": true
+    },
+    {
+      "name": "nodejs",
+      "file": "nodejs.svg",
+      "official_source": "https://nodejs.org/en/about/branding",
+      "download_url": "https://nodejs.org/static/logos/nodejsHex.svg",
+      "sha256": "e4c8de546b2462ad9497679c55609701144ffacd8e18ac17a7f7f7b795de9fe7",
+      "bytes": 2113,
+      "original_file_preserved": true
+    }
+  ]
+}

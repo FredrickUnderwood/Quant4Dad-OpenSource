@@ -3,10 +3,18 @@ set -euo pipefail
 umask 077
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 state="${Q4D_STATE_DIR:-$root/data/standalone}"
-with_mcp=0 with_agent=0 build=1 mysql_file=""
+with_mcp=0 with_agent=0 build=1 pull=0 mysql_file=""
+image_prefix="" image_tag=latest
+usage() {
+  printf '%s\n' \
+    'Usage: scripts/install.sh [--with-mcp] [--with-agent] [--mysql-dsn-file FILE]' \
+    '       [--skip-migration] [--skip-seed] [--no-background] [--web-port 3000] [--mcp-port 8090]' \
+    '       [--bind 127.0.0.1] [--state-dir DIR] [--project-name NAME] [--no-build]' \
+    '       [--pull [--image-prefix docker.io/OWNER/quant4dad-opensource] [--image-tag TAG]]'
+}
 # First locate the state directory before loading its persisted deployment options.
 for arg in "$@"; do if [[ "$arg" == --help || "$arg" == -h ]]; then
-  printf "%s\n" "Usage: scripts/install.sh [--with-mcp] [--with-agent] [--mysql-dsn-file FILE]" "       [--skip-migration] [--skip-seed] [--no-background] [--web-port 3000] [--mcp-port 8090]" "       [--bind 127.0.0.1] [--state-dir DIR] [--project-name NAME] [--no-build]"
+  usage
   exit 0
 fi; done
 argument_count=$#
@@ -32,6 +40,9 @@ while (($#)); do
     --with-mcp) with_mcp=1; shift ;;
     --with-agent) with_agent=1; shift ;;
     --no-build) build=0; shift ;;
+    --pull) pull=1; shift ;;
+    --image-prefix) [[ $# -ge 2 ]] || exit 2; image_prefix="$2"; shift 2 ;;
+    --image-tag) [[ $# -ge 2 ]] || exit 2; image_tag="$2"; shift 2 ;;
     --skip-migration) export Q4D_SKIP_MIGRATION=true; shift ;;
     --skip-seed) export Q4D_SKIP_SEED=true; shift ;;
     --no-background) export Q4D_NO_BACKGROUND=true; shift ;;
@@ -41,10 +52,31 @@ while (($#)); do
     --mcp-port) [[ $# -ge 2 ]] || exit 2; export Q4D_MCP_PORT="$2"; shift 2 ;;
     --bind) [[ $# -ge 2 ]] || exit 2; export Q4D_BIND="$2"; shift 2 ;;
     --project-name) [[ $# -ge 2 ]] || exit 2; export Q4D_PROJECT_NAME="$2"; shift 2 ;;
-    --help|-h) printf '%s\n' 'Usage: scripts/install.sh [--with-mcp] [--with-agent] [--mysql-dsn-file FILE]' '       [--skip-migration] [--skip-seed] [--no-background] [--web-port 3000] [--mcp-port 8090]' '       [--bind 127.0.0.1] [--state-dir DIR] [--project-name NAME] [--no-build]'; exit 0 ;;
+    --help|-h) usage; exit 0 ;;
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
+if ((pull)); then
+  ((build)) || { echo '--pull and --no-build cannot be combined.' >&2; exit 2; }
+  build=0
+  # Release bundles pin all four public images to the same version. Parse only
+  # image names; never source a downloaded file as shell code.
+  if [[ -f "$root/deploy/images.env" ]]; then
+    while IFS='=' read -r key value; do
+      case "$key" in Q4D_API_IMAGE|Q4D_WEB_IMAGE|Q4D_MCP_IMAGE|Q4D_AGENT_IMAGE) export "$key=$value" ;; esac
+    done < "$root/deploy/images.env"
+  fi
+  if [[ -n "$image_prefix" ]]; then
+    [[ "$image_prefix" =~ ^[a-z0-9][a-z0-9./_-]*$ && "$image_prefix" == */* && "$image_prefix" != */ ]] || { echo 'Invalid image prefix.' >&2; exit 2; }
+    [[ "$image_tag" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ && ${#image_tag} -le 128 ]] || { echo 'Invalid image tag.' >&2; exit 2; }
+    export Q4D_API_IMAGE="$image_prefix-api:$image_tag" Q4D_WEB_IMAGE="$image_prefix-web:$image_tag"
+    export Q4D_MCP_IMAGE="$image_prefix-mcp:$image_tag" Q4D_AGENT_IMAGE="$image_prefix-agent:$image_tag"
+  elif [[ "$image_tag" != latest ]]; then
+    echo '--image-tag requires --image-prefix.' >&2; exit 2
+  fi
+elif [[ -n "$image_prefix" || "$image_tag" != latest ]]; then
+  echo '--image-prefix and --image-tag require --pull.' >&2; exit 2
+fi
 command -v docker >/dev/null || { echo 'Docker is required.' >&2; exit 1; }
 docker compose version >/dev/null
 docker info >/dev/null
@@ -70,12 +102,24 @@ COMPOSE_PROFILES=""
 if ((with_mcp)); then COMPOSE_PROFILES=mcp; fi
 if ((with_agent)); then COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}agent"; fi
 export COMPOSE_PROFILES
+services=(api web)
+((with_mcp==0)) || services+=(mcp)
+((with_agent==0)) || services+=(agent)
+if ((pull)); then
+  for service in "${services[@]}"; do
+    case "$service" in api) ref="$Q4D_API_IMAGE" ;; web) ref="$Q4D_WEB_IMAGE" ;; mcp) ref="$Q4D_MCP_IMAGE" ;; agent) ref="$Q4D_AGENT_IMAGE" ;; esac
+    [[ "$ref" == */* && "$ref" != *[[:space:]]* ]] || { echo 'Use a release bundle or pass --image-prefix docker.io/OWNER/quant4dad-opensource.' >&2; exit 2; }
+  done
+fi
 # This file contains only deployment settings. Business secrets stay in private YAML/token files.
 : > "$state/deployment.env"
 for key in Q4D_UID Q4D_GID Q4D_BIND Q4D_WEB_PORT Q4D_MCP_PORT Q4D_PROJECT_NAME Q4D_STATE_DIR Q4D_API_IMAGE Q4D_WEB_IMAGE Q4D_MCP_IMAGE Q4D_AGENT_IMAGE Q4D_SKIP_MIGRATION Q4D_SKIP_SEED Q4D_NO_BACKGROUND Q4D_TIMEZONE COMPOSE_PROFILES; do
  value="${!key}"; [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || exit 2; printf '%s=%s\n' "$key" "$value" >> "$state/deployment.env"
 done
 compose=(docker compose --env-file "$state/deployment.env" -f "$root/deploy/compose.yaml")
+if ((pull)); then
+ "${compose[@]}" pull --policy always "${services[@]}"
+fi
 if ((build)); then
  "${compose[@]}" build api
  "${compose[@]}" build web
