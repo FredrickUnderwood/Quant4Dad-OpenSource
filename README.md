@@ -10,7 +10,7 @@
 
 准备 Docker、Compose ≥ 2.20 和 Bash。镜像方式另需 curl，源码方式另需 Git。
 
-**Docker Hub（预构建镜像，待首次发布）**
+**Docker Hub（预构建镜像，amd64 / arm64）**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/FredrickUnderwood/Quant4Dad-OpenSource/master/scripts/download.sh -o /tmp/quant4dad-install.sh && bash /tmp/quant4dad-install.sh
