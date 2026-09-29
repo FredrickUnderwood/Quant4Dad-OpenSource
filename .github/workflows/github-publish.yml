@@ -130,7 +130,7 @@ jobs:
           ./scripts/install.sh --pull
           ~~~
 
-          追加 --with-mcp / --with-agent 启用扩展。打开 http://127.0.0.1:3000；登录 token 位于 data/standalone/config/login-token。升级前备份 data/standalone。
+          追加 --with-mcp / --with-agent 启用扩展。打开 http://127.0.0.1:3000；登录 token 位于 data/standalone/config/login-token。升级前备份 data/standalone 及 API 的 Docker 数据卷。
 
           环境：Docker、Compose ≥ 2.20、Bash。源代码 ZIP / tar.gz 见下方 Source code。
           NOTES

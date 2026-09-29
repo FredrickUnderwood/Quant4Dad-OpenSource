@@ -55,9 +55,25 @@ func (r *CSVImportRepository) CheckSchema(ctx context.Context) error {
 }
 
 func (r *CSVImportRepository) Transaction(ctx context.Context, dryRun bool, fn func(*CSVImportTransaction) error) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return fn(&CSVImportTransaction{db: tx, lock: !dryRun})
+	started := time.Now()
+	phase := "begin"
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		phase = "apply"
+		if err := fn(&CSVImportTransaction{db: tx, lock: !dryRun}); err != nil {
+			return err
+		}
+		phase = "commit"
+		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		// GORM's SQL logger does not observe BeginTx/Commit failures. Preserve
+		// the stage and driver codes without SQL, imported cells or credentials.
+		fields := append(logger.DatabaseErrorFields(err),
+			zap.String("phase", phase), zap.String("backend", r.db.Dialector.Name()),
+			zap.Bool("dry_run", dryRun), zap.Duration("elapsed", time.Since(started)))
+		logger.Error(ctx, "CSV import transaction failed", fields...)
+	}
+	return err
 }
 
 func (t *CSVImportTransaction) query(ctx context.Context) *gorm.DB {

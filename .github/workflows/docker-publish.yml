@@ -103,6 +103,15 @@ jobs:
             --token-file data/standalone/config/login-token \
             --mcp-url http://127.0.0.1:8090/mcp \
             --mcp-token-file data/standalone/config/mcp-token --expect-agent
+      - name: Verify first CSV commit and repeated import
+        run: |
+          compose=(docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml)
+          "${compose[@]}" exec -T api mkdir -p /app/data/import
+          "${compose[@]}" cp -a examples/import/. api:/app/data/import/
+          importer=("${compose[@]}" exec -T api /app/quant4dad-import -config /app/config/api.yaml
+            -instruments /app/data/import/instruments.csv -bars /app/data/import/bars.csv)
+          "${importer[@]}" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["instruments"]["inserted"] == 2 and r["bars"]["inserted"] == 160, r'
+          "${importer[@]}" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["instruments"]["unchanged"] == 2 and r["bars"]["unchanged"] == 160 and r["bars"]["inserted"] == 0, r'
       - name: Publish verified architecture images
         run: |
           for service in api web mcp agent; do

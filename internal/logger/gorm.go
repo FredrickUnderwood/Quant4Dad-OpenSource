@@ -94,7 +94,7 @@ func DatabaseErrorFields(err error) []zap.Field {
 	if errors.As(err, &mysqlErr) {
 		fields = append(fields, zap.Uint16("mysql_errno", mysqlErr.Number), zap.String("sql_state", string(mysqlErr.SQLState[:])))
 	}
-	return fields
+	return appendSQLiteErrorFields(fields, err)
 }
 
 // ParamsFilter is GORM's parameterized-logging hook. Even the unlogged SQL passed

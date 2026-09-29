@@ -13,7 +13,7 @@ services:
     init: true
     volumes:
       - ${Q4D_STATE_DIR:-../data/standalone}/config/api.yaml:/app/config/api.yaml:ro
-      - ${Q4D_STATE_DIR:-../data/standalone}/data:/app/data
+      - ${Q4D_DATA_MOUNT:-${Q4D_STATE_DIR:-../data/standalone}/data}:/app/data
     healthcheck:
       test: [CMD, /app/quant4dad, --check-ready, 'http://127.0.0.1:8080/readyz']
       interval: 5s
@@ -103,3 +103,8 @@ services:
       timeout: 3s
       retries: 6
       start_period: 30s
+
+volumes:
+  q4d_data:
+    external: true
+    name: ${Q4D_DATA_VOLUME:-quant4dad-opensource-data}

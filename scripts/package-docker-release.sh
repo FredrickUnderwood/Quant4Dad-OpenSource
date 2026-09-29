@@ -20,7 +20,7 @@ printf '%s\n' 'Run: ./scripts/install.sh --pull' \
   'Optional: add --with-mcp and/or --with-agent.' \
   'Web: http://127.0.0.1:3000' \
   'Login token: data/standalone/config/login-token' \
-  'Keep and back up data/standalone when upgrading.' \
+  'Back up data/standalone and the Docker API data volume before upgrading.' \
   'Docs: https://github.com/FredrickUnderwood/Quant4Dad-OpenSource#readme' \
   > "$staging/quant4dad/README.txt"
 COPYFILE_DISABLE=1 tar -czf "$output" -C "$staging" quant4dad

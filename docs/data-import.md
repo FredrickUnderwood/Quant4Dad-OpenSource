@@ -9,8 +9,9 @@ Start the API once to initialize the database schema.
 The installer mounts its API configuration at `/app/config/api.yaml` and the persistent data directory at `/app/data`. Use the importer already included in that API container so it reads the same configuration and database as the running service. From the repository root, with the default installer state directory:
 
 ```sh
-mkdir -p data/standalone/data/import
-cp examples/import/*.csv data/standalone/data/import/
+for file in instruments.csv bars.csv; do
+  docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml exec -T api sh -c 'umask 077; mkdir -p /app/data/import; cat > "/app/data/import/$1"' sh "$file" < "examples/import/$file"
+done
 docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml exec -T api /app/quant4dad-import -config /app/config/api.yaml -instruments /app/data/import/instruments.csv -bars /app/data/import/bars.csv -dry-run
 ```
 
@@ -20,7 +21,7 @@ For a fresh demonstration database, the preview should report 2 instruments and 
 docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml exec -T api /app/quant4dad-import -config /app/config/api.yaml -instruments /app/data/import/instruments.csv -bars /app/data/import/bars.csv
 ```
 
-If the installer used a custom state directory, substitute it for `data/standalone` in the host paths above. For your own data, copy your CSV files into that state's `data/import/` directory and use their `/app/data/import/` paths. The container command uses whichever SQLite or MySQL backend its mounted configuration selects. Do not use the repository's example `config/quant4dad.yaml` to target an installer-managed database from the host.
+If the installer used a custom state directory, substitute it for `data/standalone` above. For your own data, use the same stdin-copy command with your filename, then pass its `/app/data/import/` path to the importer. Writing as the API user also handles private `0600` files and root installations without changing ownership. This works with both Docker volumes and older bind-mounted installations. The container command uses whichever SQLite or MySQL backend its mounted configuration selects. Do not use the repository's example `config/quant4dad.yaml` to target an installer-managed database from the host.
 
 ## Local Go process
 
@@ -80,6 +81,6 @@ The importer validates the complete input, checks existing records, then writes 
 
 `-replace` updates only the supplied instrument fields and supplied bar keys; it does not delete other records. Imported bars replace the entire OHLCV/factor/provenance content of each supplied key. A dry-run is a point-in-time check; the writing invocation repeats all checks under transaction locks. Concurrent conflicting inserts cause rollback rather than silently overwrite data.
 
-Successful stdout is a JSON summary with `dry_run` and `inserted`, `updated`, `unchanged` counts for instruments and bars. Dry-run counts describe planned changes. Errors go to stderr and exit nonzero. The default deadline is five minutes; `-timeout` can change it up to 30 minutes. Ctrl-C cancels the transaction.
+Successful stdout is a JSON summary with `dry_run` and `inserted`, `updated`, `unchanged` counts for instruments and bars. Dry-run counts describe planned changes. Errors go to stderr and exit nonzero. Transaction failures include the `begin`, `apply`, or `commit` phase and safe database error codes, without CSV values or SQL. On Docker Desktop, use the default Docker data volume; an older host bind mount can cause SQLite commit lock failures. See [data migration](deployment.md#persistent-data-and-backups). The default deadline is five minutes; `-timeout` can change it up to 30 minutes. Ctrl-C cancels the transaction.
 
 After import, search for your instrument in the Web, or call `GET /api/v1/instruments?keyword=sh.600000` and its bars endpoint. Existing coverage summaries refresh on their normal scan or manual coverage scan; import does not enqueue a network sync.

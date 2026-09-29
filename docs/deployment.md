@@ -4,7 +4,7 @@ Quant4Dad runs without a deployment platform, configuration service, private SDK
 
 ## Docker Hub images
 
-The public `v0.1.0` and `latest` tags support Linux amd64 and arm64.
+The public `v0.1.1` and `latest` tags support Linux amd64 and arm64.
 
 Docker Hub image locations: [API](https://hub.docker.com/r/fredrick19/quant4dad-opensource-api), [Web](https://hub.docker.com/r/fredrick19/quant4dad-opensource-web), [MCP](https://hub.docker.com/r/fredrick19/quant4dad-opensource-mcp), [Agent](https://hub.docker.com/r/fredrick19/quant4dad-opensource-agent).
 
@@ -25,15 +25,17 @@ Set `Q4D_INSTALL_DIR` to change the installation directory, or `Q4D_RELEASE_REF`
 ./scripts/install.sh --pull --with-mcp --with-agent
 ```
 
-`--pull` downloads every enabled service image before generating configuration or starting containers. A failed pull stops installation. Re-running the command preserves the enabled extensions, credentials and application data. Keep `data/standalone` intact and back it up before upgrades. A custom state directory must be selected with the same `--state-dir` each time.
+`--pull` downloads every enabled service image before generating configuration or starting containers. A failed pull stops installation. Re-running the command preserves the enabled extensions, credentials and application data. Keep `data/standalone` intact and back up both the private state and API data volume before upgrades (see below). A custom state directory must be selected with the same `--state-dir` each time.
 
 From a source checkout, `./scripts/install.sh --pull` uses the public `fredrick19` images in `deploy/images.env`. To select a particular published version:
 
 ```sh
-./scripts/install.sh --pull --image-prefix docker.io/fredrick19/quant4dad-opensource --image-tag v0.1.0
+./scripts/install.sh --pull --image-prefix docker.io/fredrick19/quant4dad-opensource --image-tag v0.1.1
 ```
 
 Replace the example tag with an existing release. Four images share the prefix: `-api`, `-web`, `-mcp`, and `-agent`; only enabled services are pulled. `--pull` and `--no-build` are mutually exclusive.
+
+If Docker Hub pulls fail with EOF while shell downloads work, check **Docker Desktop → Settings → Resources → Proxies**. Docker Desktop must use a reachable outbound proxy; terminal `HTTP_PROXY` alone does not configure it. Alternatively, use the GHCR release archive. The Mac rehearsal verified all four Docker Hub images after configuring the Desktop proxy. [Docker proxy settings](https://docs.docker.com/desktop/settings-and-maintenance/settings/#proxies)
 
 ## Build from Git
 
@@ -43,7 +45,7 @@ From the repository root, deploy Web + API with SQLite:
 ./scripts/install.sh
 ```
 
-Open `http://127.0.0.1:3000`. The installer prints the path to the private login token file; read that file and enter its value in the login page. It never prints credentials itself. SQLite, configuration and tool artifacts live under `data/standalone`, outside the images. The default network exposes Web only; API is reachable by Web inside the Compose network.
+Open `http://127.0.0.1:3000`. The installer prints the path to the private login token file; read that file and enter its value in the login page. It never prints credentials itself. Configuration stays under `data/standalone`; new installations store SQLite, private integration settings and tool artifacts in a Docker named volume, outside the images. The default network exposes Web only; API is reachable by Web inside the Compose network.
 
 The installation is single-owner. Generated tokens are random and distinct. Configuration and credential files have mode `0600`, private directories `0700`; containers run with the installation user's non-root UID (root installations use UID 65532). The Web container receives only its own non-secret proxy configuration. Re-running the installer preserves tokens, data, and enabled profiles and recreates containers to apply configuration changes. Do not run two installers against the same state directory concurrently.
 
@@ -95,13 +97,41 @@ The API also supports explicit one-off `--migration check`, `--migration apply`,
 
 Use `--bind 0.0.0.0` to listen beyond loopback. For Internet access, put an HTTPS reverse proxy in front of Web and MCP. Set `web.trusted_proxies` to the trusted ingress addresses, and `server.trusted_proxies` to the Web proxy addresses; each hop verifies its immediate peer before honoring `X-Forwarded-Proto`. Do not publish the internal API or Agent Bridge. The full MCP endpoint rejects browser `Origin` headers.
 
-Deployment settings are saved in `data/standalone/deployment.env`; startup configuration is in `config/api.yaml`. API Settings saves data-source and OSS integrations in `data/settings/integrations.yaml` under the state directory (override with startup `settings.path`). Its owner must match the API user, directory mode must be `0700`, and file mode `0600`; symlink files/directories are rejected. The API writes atomically and checks revisions to prevent stale browser tabs from overwriting one another. Do not share one private settings file between multiple API processes or edit it while the API is running. It takes precedence over the corresponding startup YAML defaults. Reinstallation preserves this data directory.
+Deployment settings are saved in `data/standalone/deployment.env`; startup configuration is in `config/api.yaml`. API Settings saves data-source and OSS integrations at `/app/data/settings/integrations.yaml` in the API data mount (override with startup `settings.path`). Its owner must match the API user, directory mode must be `0700`, and file mode `0600`; symlink files/directories are rejected. The API writes atomically and checks revisions to prevent stale browser tabs from overwriting one another. Do not share one private settings file between multiple API processes or edit it while the API is running. It takes precedence over the corresponding startup YAML defaults. Reinstallation preserves this data directory.
 
 Existing collection tasks keep their original client/configuration snapshot. New tasks use the saved settings. An archive run blocks changes to its archive configuration until it finishes; no new automatic work is started by settings when `--no-background` is active. The Settings page includes a read-only deployment checklist for options that still require installation or restart.
 
-Review and edit startup files locally as needed. Avoid `docker compose config` without `--quiet` when handling private overrides. Use the printed `docker compose --env-file ... -f ...` command to inspect services or logs. `down` stops the installation; it does not delete the bind-mounted state directory.
+Review and edit startup files locally as needed. Avoid `docker compose config` without `--quiet` when handling private overrides. Use the printed `docker compose --env-file ... -f ...` command to inspect services or logs. `down` stops the installation; it preserves the private host state and the managed external data volume.
 
 `--no-build` uses already loaded images. Default image names are `quant4dad-opensource-api:local`, `quant4dad-opensource-web:local`, `quant4dad-opensource-mcp:local`, and `quant4dad-opensource-agent:local`. Set their `Q4D_*_IMAGE` environment variables on the first install, or edit the saved deployment settings on subsequent installs. Updating uses the same install command against the new source; back up database and state before an upgrade.
+
+## Persistent data and backups
+
+New installations use a Docker named volume for `/app/data`. Existing installations retain their bind mount until explicitly migrated:
+
+```sh
+./scripts/install.sh --pull --data-storage volume
+```
+
+Use the same `--state-dir` and project as before. Migration stops the installation, copies the entire API data directory while offline, preserves ownership and permissions, then starts the services with the volume. The old host data stays untouched as a migration backup; after migration it is no longer the live database. Reinstallation reuses the initialized volume. `--data-storage bind` is available for new installations that require a host directory.
+
+Docker Desktop recommends VM-local volumes for databases. In the Mac deployment check, a host bind mount repeatedly failed its first CSV transaction at SQLite `COMMIT` (`SQLITE_BUSY`); three fresh volume deployments imported successfully without retries or database setting changes. This identifies the triggering storage path, not a specific upstream filesystem defect. [Docker guidance](https://docs.docker.com/desktop/settings-and-maintenance/settings/)
+
+Back up both the private state and API data while all services are stopped. From the installation directory, in Bash (substitute a custom state directory if applicable):
+
+```bash
+set -e
+umask 077
+backup="$PWD/backup-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup"
+compose=(docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml)
+"${compose[@]}" stop
+cp -Rp data/standalone "$backup/state"
+"${compose[@]}" cp -a api:/app/data "$backup/api-data"
+"${compose[@]}" start
+```
+
+The backup includes credentials; keep it private. Do not delete the managed data volume or assume the host `data/standalone/data` directory remains current after migration.
 
 ## Verification
 
@@ -146,7 +176,7 @@ Re-running the installer preserves credentials, stored data, enabled profiles, a
 
 Configure the GitHub repository variable `DOCKERHUB_USERNAME=fredrick19`, secret `DOCKERHUB_TOKEN` (write access to the four image repositories), and optionally `DOCKERHUB_NAMESPACE` for an organization. The `quant4dad-opensource-api`, `-web`, `-mcp`, and `-agent` repositories must be public for anonymous installation.
 
-Run **Publish Docker images** with a stable version such as `v0.1.0`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags to Docker Hub and calls **Publish GitHub release**. A failed build or smoke check prevents publication of the combined release tags and download bundles.
+Run **Publish Docker images** with a stable version such as `v0.1.1`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags to Docker Hub and calls **Publish GitHub release**. A failed build or smoke check prevents publication of the combined release tags and download bundles.
 
 For an already published Docker Hub version, run **Publish GitHub release** directly with that version and the Docker Hub image prefix. It copies every platform to `ghcr.io/fredrickunderwood/quant4dad-opensource-{api,web,mcp,agent}`, verifies identical manifest digests, and creates the GitHub Release with both installer archives, `SHA256SUMS` and `release-images.json`. An existing Git tag selects the matching source; a new tag points to the selected workflow commit. This workflow uses GitHub's scoped `GITHUB_TOKEN`; no personal token or Docker Hub write secret is needed.
 
@@ -155,5 +185,5 @@ GitHub automatically links workflow-published packages to this repository. After
 The archive includes version-pinned image names in `deploy/images.env`, installer, Compose configuration and license; it contains no source build context, credentials or user data. Local packaging is also available:
 
 ```sh
-bash scripts/package-docker-release.sh docker.io/fredrick19/quant4dad-opensource v0.1.0 quant4dad-docker.tar.gz
+bash scripts/package-docker-release.sh docker.io/fredrick19/quant4dad-opensource v0.1.1 quant4dad-docker.tar.gz
 ```

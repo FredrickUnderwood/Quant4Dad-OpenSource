@@ -28,7 +28,7 @@ git clone https://github.com/FredrickUnderwood/Quant4Dad-OpenSource.git && cd Qu
 
 打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)；安装目录内的登录 token：`data/standalone/config/login-token`。命令末尾添加 `--with-mcp` / `--with-agent` 可启用扩展。数据源、模型和通知在「设置」中配置。
 
-MCP 默认 `http://127.0.0.1:8090/mcp`，使用 `data/standalone/config/mcp-token`；该凭据包含写工具权限。配置、凭据及 SQLite 数据保存在 `data/standalone`，升级前备份。
+MCP 默认 `http://127.0.0.1:8090/mcp`，使用 `data/standalone/config/mcp-token`；该凭据包含写工具权限。配置和凭据在 `data/standalone`，新安装的数据库在 Docker 数据卷；[备份与迁移](docs/deployment.md#persistent-data-and-backups)。
 
 ## 架构
 
