@@ -40,28 +40,30 @@ export default function StrategiesPage() {
       {items.length === 0 ? (
         <p className="empty">还没有策略，点右上角「新建策略」开始可视化编排吧。</p>
       ) : (
-        <table>
-          <thead><tr><th>ID</th><th>名称</th><th>模式</th><th>标的</th><th>周期</th><th>更新时间</th><th>操作</th></tr></thead>
-          <tbody>
-            {items.map(s => (
-              <tr key={s.id}>
-                <td>{s.id}</td>
-                <td>{s.name}</td>
-                <td>{modeOf(s) === 'script'
-                  ? <span className="tag running">脚本</span>
-                  : <span className="tag">配置</span>}</td>
-                <td>{(s.universe || []).join(', ')}</td>
-                <td>{s.period}</td>
-                <td>{(s.updated_at || '').slice(0, 19).replace('T', ' ')}</td>
-                <td>
-                  <Link to={`/strategies/${s.id}/edit`}><button className="secondary small">编辑</button></Link>{' '}
-                  <button className="small" onClick={() => onBacktest(s)}>回测</button>{' '}
-                  <button className="danger small" onClick={() => onDelete(s.id)}>删除</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>ID</th><th>名称</th><th>模式</th><th>标的</th><th>周期</th><th>更新时间</th><th>操作</th></tr></thead>
+            <tbody>
+              {items.map(s => (
+                <tr key={s.id}>
+                  <td>{s.id}</td>
+                  <td>{s.name}</td>
+                  <td>{modeOf(s) === 'script'
+                    ? <span className="tag running">脚本</span>
+                    : <span className="tag">配置</span>}</td>
+                  <td>{(s.universe || []).join(', ')}</td>
+                  <td>{s.period}</td>
+                  <td>{(s.updated_at || '').slice(0, 19).replace('T', ' ')}</td>
+                  <td>
+                    <Link to={`/strategies/${s.id}/edit`}><button className="secondary small">编辑</button></Link>{' '}
+                    <button className="small" onClick={() => onBacktest(s)}>回测</button>{' '}
+                    <button className="danger small" onClick={() => onDelete(s.id)}>删除</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

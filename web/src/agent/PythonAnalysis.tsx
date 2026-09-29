@@ -25,7 +25,7 @@ export function PythonAnalysis({ analysis: a }: { analysis: Analysis }) {
     <div className="assistant-kline-summary"><strong>{a.title || 'Python 行情研究'}</strong><span>{status[a.status]} · {a.input_count.toLocaleString()} 根输入 · {a.duration_ms} ms</span></div>
     <p className="muted">{pythonPriceBasis(a)}。{a.price_basis !== 'qfq' && '图名和脚本标签不代表已完成前复权或分红调整。'}</p>
     {a.status === 'succeeded' && typeof a.result.summary === 'string' && <p>{a.result.summary.slice(0, 4000)}</p>}
-    {option && <><ReactECharts option={option} style={{ height: 520 }} notMerge /><p className="muted">均线与对应事件同色；同日多个事件错位标注。点击图例可筛选，下载总图保留完整区间和全部图例。</p></>}
+    {option && <><ReactECharts option={option} style={{ height: 'clamp(520px, 56dvh, 800px)' }} notMerge /><p className="muted">均线与对应事件同色；同日多个事件错位标注。点击图例可筛选，下载总图保留完整区间和全部图例。</p></>}
     <div className="assistant-actions">
       {option && <button className="secondary" type="button" onClick={savePNG}>下载总图</button>}
       {table && <button className="secondary" type="button" onClick={() => download('\uFEFF' + pythonTableCSV(a), `${filename}.csv`, 'text/csv;charset=utf-8')}>下载统计表</button>}

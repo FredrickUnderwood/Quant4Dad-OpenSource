@@ -1,6 +1,6 @@
 #root:has(.assistant-layout) { height: 100dvh; display: flex; flex-direction: column; }
 #root:has(.assistant-layout) > header { flex-shrink: 0; }
-main.assistant-layout { flex: 1; min-height: 0; width: 100%; max-width: 1480px; padding: 20px 24px; }
+main.assistant-layout { flex: 1; min-height: 0; width: 100%; padding: 20px var(--page-gutter); }
 .assistant {
   --surface: #fff; --surface-2: #f6f7f8; --surface-sunk: #eff1f3;
   --ink: #22262b; --ink-2: #444a53; --muted: #737982; --hair: #eceef1; --rule: #dce0e5;
@@ -59,7 +59,7 @@ main.assistant-layout { flex: 1; min-height: 0; width: 100%; max-width: 1480px; 
 .assistant-create select { width: 100%; border-radius: 8px; }
 .assistant-create .assistant-actions { margin-top: 12px; }
 .assistant-messages { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 30px 32px 20px; min-height: 0; scroll-behavior: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
-.assistant-thread { max-width: 800px; margin: 0 auto; }
+.assistant-thread { width: 100%; min-width: 0; }
 .assistant-empty { color: var(--muted); margin: clamp(20px, 8vh, 90px) auto 30px; text-align: center; max-width: 520px; }
 .assistant-empty-mark { font-size: 52px; color: var(--accent); line-height: 1; }
 .assistant-empty h3 { color: var(--ink); font-size: 26px; font-weight: 600; margin: 20px 0 8px; }
@@ -78,7 +78,7 @@ main.assistant-layout { flex: 1; min-height: 0; width: 100%; max-width: 1480px; 
 .assistant-copy { padding: 3px 0; margin-top: 10px; font-size: 11px; color: var(--muted); opacity: .65; }
 .assistant-message:hover .assistant-copy, .assistant-copy:focus-visible { opacity: 1; }
 .assistant-stream-cursor { display: inline-block; width: 6px; height: 15px; border-radius: 2px; background: var(--accent); animation: assistant-blink 1s ease-in-out infinite; }
-.assistant-compose { position: relative; width: 100%; max-width: 864px; margin: 0 auto; padding: 0 32px 18px; flex-shrink: 0; }
+.assistant-compose { position: relative; width: 100%; padding: 0 32px 18px; flex-shrink: 0; }
 .assistant-run-status { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
 .assistant-activity { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .assistant-activity-mark { display: flex; align-items: center; gap: 3px; min-width: 22px; color: var(--muted); }

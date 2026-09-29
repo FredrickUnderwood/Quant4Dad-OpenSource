@@ -26,19 +26,19 @@ function useThemeMode(): 'light' | 'dark' {
 interface Props {
   value: string;
   onChange: (code: string) => void;
-  height?: number;
+  height?: number | string;
   readOnly?: boolean;
 }
 
 // CodeEditor wraps CodeMirror 6 with Starlark (Python) highlighting. Starlark is
 // a Python subset, so the Python grammar is a good fit.
-export default function CodeEditor({ value, onChange, height = 420, readOnly }: Props) {
+export default function CodeEditor({ value, onChange, height = 'clamp(320px, 55dvh, 800px)', readOnly }: Props) {
   const mode = useThemeMode();
   return (
     <div style={{ border: '1px solid var(--rule)', borderRadius: 6, overflow: 'hidden' }}>
       <CodeMirror
         value={value}
-        height={`${height}px`}
+        height={typeof height === 'number' ? `${height}px` : height}
         theme={mode}
         readOnly={readOnly}
         extensions={[python()]}

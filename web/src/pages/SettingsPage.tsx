@@ -375,50 +375,52 @@ function NewsSourceSettings() {
       ) : rows.length === 0 ? (
         <div className="empty">尚未安装资讯数据源。本项目保留扩展接口，不包含内置资讯采集器。</div>
       ) : (
-        <table style={{ marginTop: 12 }}>
-          <thead>
-            <tr>
-              <th>来源</th>
-              <th>启用</th>
-              <th>间隔(秒)</th>
-              <th>上次采集</th>
-              <th>上次新增</th>
-              <th>状态</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.source}>
-                <td>{NEWS_SOURCE_LABEL[r.source] ?? r.source}</td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={r.enabled}
-                    onChange={(e) => update(i, { enabled: e.target.checked })}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    min={5}
-                    value={r.interval_seconds}
-                    style={{ width: 80 }}
-                    onChange={(e) => update(i, { interval_seconds: Number(e.target.value) })}
-                  />
-                </td>
-                <td className="mono muted">{fmtTs(r.last_polled_at)}</td>
-                <td className="mono">{r.last_fetched ? `${r.last_new}/${r.last_fetched}` : '—'}</td>
-                <td>{r.last_error ? <span className="error">{r.last_error}</span> : <span className="muted">正常</span>}</td>
-                <td>
-                  <button className="secondary small" disabled={polling === r.source} onClick={() => pollNow(r.source)}>
-                    {polling === r.source ? '采集中…' : '立即采集'}
-                  </button>
-                </td>
+        <div className="table-scroll">
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>来源</th>
+                <th>启用</th>
+                <th>间隔(秒)</th>
+                <th>上次采集</th>
+                <th>上次新增</th>
+                <th>状态</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.source}>
+                  <td>{NEWS_SOURCE_LABEL[r.source] ?? r.source}</td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={(e) => update(i, { enabled: e.target.checked })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min={5}
+                      value={r.interval_seconds}
+                      style={{ width: 80 }}
+                      onChange={(e) => update(i, { interval_seconds: Number(e.target.value) })}
+                    />
+                  </td>
+                  <td className="mono muted">{fmtTs(r.last_polled_at)}</td>
+                  <td className="mono">{r.last_fetched ? `${r.last_new}/${r.last_fetched}` : '—'}</td>
+                  <td>{r.last_error ? <span className="error">{r.last_error}</span> : <span className="muted">正常</span>}</td>
+                  <td>
+                    <button className="secondary small" disabled={polling === r.source} onClick={() => pollNow(r.source)}>
+                      {polling === r.source ? '采集中…' : '立即采集'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

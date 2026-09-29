@@ -34,7 +34,7 @@ export function KlineAnalysis({ analysis: a, segments = [] }: { analysis: KlineD
     <div className="assistant-kline-summary"><strong>{a.code} · {a.period === '1d' ? '日 K' : a.period === '1w' ? '周 K' : '月 K'}</strong><span>{a.matched_count} 次命中 / {a.eligible_count} 根有效样本{a.match_rate_pct !== null ? ` · ${a.match_rate_pct.toFixed(2)}%` : ''}</span></div>
     <p>{condition}</p>
     <p className="muted">{a.first_date || '无数据'}{a.last_date ? ` — ${a.last_date}` : ''} · 数据截至 {a.data_as_of || '未知'} · 排除 {a.excluded_count} 根</p>
-    {a.bar_count > 0 && <><ReactECharts option={option} style={{ height: 440 }} notMerge />
+    {a.bar_count > 0 && <><ReactECharts option={option} style={{ height: 'clamp(440px, 52dvh, 760px)' }} notMerge />
       <p className="muted">三角标记为命中日期，可拖动底部滑块缩放；下载图片始终包含完整区间。成交量单位未声明。</p></>}
     <div className="assistant-actions"><button type="button" className="secondary" onClick={savePNG} disabled={!a.bar_count}>下载 K 线图</button><button type="button" className="secondary" onClick={saveCSV}>下载命中表</button></div>
     {segments.length > 1 && <div className="assistant-kline-segments"><p className="muted">已将 {segments.length} 个区间汇总为一张图，共 {a.bar_count.toLocaleString()} 根 K 线。</p><div className="assistant-kline-scroll"><table><thead><tr><th>统计区间</th><th>命中</th><th>有效样本</th><th>占比</th></tr></thead><tbody>{segments.map(segment => <tr key={`${segment.file_id}-${segment.requested_start}-${segment.requested_end}`}><td>{segment.first_date} — {segment.last_date}</td><td>{segment.matched_count}</td><td>{segment.eligible_count}</td><td>{segment.match_rate_pct === null ? '—' : `${segment.match_rate_pct.toFixed(2)}%`}</td></tr>)}</tbody></table></div></div>}

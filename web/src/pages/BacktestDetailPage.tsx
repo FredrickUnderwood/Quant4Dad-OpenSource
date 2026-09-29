@@ -57,8 +57,8 @@ function CandleChart({ bars, trades, palette }: { bars: Bar[]; trades: Trade[]; 
       textStyle: { color: p.ink, fontFamily: 'JetBrains Mono, monospace', fontSize: 11 },
     },
     grid: [
-      { left: 64, right: 24, top: 16, height: 220, borderColor: p.hair },
-      { left: 64, right: 24, top: 260, height: 60, borderColor: p.hair },
+      { left: 64, right: 24, top: 16, bottom: '34%', borderColor: p.hair },
+      { left: 64, right: 24, top: '72%', bottom: 40, borderColor: p.hair },
     ],
     xAxis: [
       {
@@ -117,7 +117,7 @@ function CandleChart({ bars, trades, palette }: { bars: Bar[]; trades: Trade[]; 
     ],
   };
 
-  return <ReactECharts option={opt} style={{ height: 360 }} notMerge={true} />;
+  return <ReactECharts option={opt} style={{ height: 'clamp(360px, 46dvh, 720px)' }} notMerge={true} />;
 }
 
 export default function BacktestDetailPage() {
@@ -270,7 +270,7 @@ export default function BacktestDetailPage() {
 
       <section>
         <h2>资金曲线 & 回撤</h2>
-        {equity.length === 0 ? <p className="muted">等待回测完成…</p> : <ReactECharts option={chartOpt} style={{ height: 360 }} />}
+        {equity.length === 0 ? <p className="muted">等待回测完成…</p> : <ReactECharts option={chartOpt} style={{ height: 'clamp(360px, 46dvh, 720px)' }} />}
       </section>
 
       {codes.length > 0 && (
@@ -303,46 +303,50 @@ export default function BacktestDetailPage() {
       {ruleStats && (
         <section>
           <h2>按规则归因</h2>
-          <table>
-            <thead><tr><th>规则</th><th>触发次数</th><th>盈利笔数</th><th>累计盈亏</th></tr></thead>
-            <tbody>
-              {Object.keys(ruleStats).map(name => {
-                const s = ruleStats[name];
-                return (
-                  <tr key={name}>
-                    <td>{name}</td>
-                    <td>{s.trigger_count}</td>
-                    <td>{s.win_count || 0}</td>
-                    <td>{fmtNum(s.total_pnl || 0)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>规则</th><th>触发次数</th><th>盈利笔数</th><th>累计盈亏</th></tr></thead>
+              <tbody>
+                {Object.keys(ruleStats).map(name => {
+                  const s = ruleStats[name];
+                  return (
+                    <tr key={name}>
+                      <td>{name}</td>
+                      <td>{s.trigger_count}</td>
+                      <td>{s.win_count || 0}</td>
+                      <td>{fmtNum(s.total_pnl || 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       <section>
         <h2>成交记录</h2>
-        <table>
-          <thead><tr><th>时间</th><th>标的</th><th>方向</th><th>价格</th><th>数量</th><th>金额</th><th>佣金</th><th>印花税</th><th>已实现盈亏</th><th>触发规则</th></tr></thead>
-          <tbody>
-            {trades.map((t, i) => (
-              <tr key={i}>
-                <td>{(t.time || '').slice(0, 10)}</td>
-                <td>{t.code}</td>
-                <td><span className={`tag ${t.side === 'buy' ? '' : 'success'}`}>{t.side}</span></td>
-                <td>{fmtNum(t.price)}</td>
-                <td>{t.qty}</td>
-                <td>{fmtNum(t.notional)}</td>
-                <td>{fmtNum(t.commission)}</td>
-                <td>{fmtNum(t.stamp_duty)}</td>
-                <td>{t.realized_pnl != null ? fmtNum(t.realized_pnl) : '-'}</td>
-                <td>{t.triggered_rule || ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>时间</th><th>标的</th><th>方向</th><th>价格</th><th>数量</th><th>金额</th><th>佣金</th><th>印花税</th><th>已实现盈亏</th><th>触发规则</th></tr></thead>
+            <tbody>
+              {trades.map((t, i) => (
+                <tr key={i}>
+                  <td>{(t.time || '').slice(0, 10)}</td>
+                  <td>{t.code}</td>
+                  <td><span className={`tag ${t.side === 'buy' ? '' : 'success'}`}>{t.side}</span></td>
+                  <td>{fmtNum(t.price)}</td>
+                  <td>{t.qty}</td>
+                  <td>{fmtNum(t.notional)}</td>
+                  <td>{fmtNum(t.commission)}</td>
+                  <td>{fmtNum(t.stamp_duty)}</td>
+                  <td>{t.realized_pnl != null ? fmtNum(t.realized_pnl) : '-'}</td>
+                  <td>{t.triggered_rule || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );

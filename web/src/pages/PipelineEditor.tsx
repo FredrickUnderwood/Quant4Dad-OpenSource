@@ -605,28 +605,30 @@ function DryRunPanel({ input }: { input: () => PipelineInput }) {
             </span>
           </div>
           <h4>逐节点</h4>
-          <table>
-            <thead><tr><th>节点</th><th>动作</th><th>耗时</th></tr></thead>
-            <tbody>
-              {res.traces.map((t, i) => (
-                <tr key={i}>
-                  <td>{t.node_key}<div className="muted">{t.node_type}</div></td>
-                  <td>
-                    <span className={`tag ${t.action === 'drop' ? 'failed' : 'success'}`}>{t.action === 'drop' ? '丢弃' : '通过'}</span>
-                    {t.error && <div className="error" style={{ marginTop: 4 }}>{t.error}</div>}
-                    {t.delivery_preview && <details style={{ marginTop: 6 }}>
-                      <summary>触达预览 · 未发送</summary>
-                      <div>{t.delivery_preview.channel === 'email' ? '邮件' : '飞书'}</div>
-                      {t.delivery_preview.channel === 'email' && <div>收件人：{t.delivery_preview.uses_default_recipients ? '使用通道默认收件人' : t.delivery_preview.recipients.join(', ')}</div>}
-                      <strong>{t.delivery_preview.title}</strong>
-                      <pre style={{ whiteSpace: 'pre-wrap' }}>{t.delivery_preview.body}</pre>
-                    </details>}
-                  </td>
-                  <td className="mono">{t.latency_ms}ms</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>节点</th><th>动作</th><th>耗时</th></tr></thead>
+              <tbody>
+                {res.traces.map((t, i) => (
+                  <tr key={i}>
+                    <td>{t.node_key}<div className="muted">{t.node_type}</div></td>
+                    <td>
+                      <span className={`tag ${t.action === 'drop' ? 'failed' : 'success'}`}>{t.action === 'drop' ? '丢弃' : '通过'}</span>
+                      {t.error && <div className="error" style={{ marginTop: 4 }}>{t.error}</div>}
+                      {t.delivery_preview && <details style={{ marginTop: 6 }}>
+                        <summary>触达预览 · 未发送</summary>
+                        <div>{t.delivery_preview.channel === 'email' ? '邮件' : '飞书'}</div>
+                        {t.delivery_preview.channel === 'email' && <div>收件人：{t.delivery_preview.uses_default_recipients ? '使用通道默认收件人' : t.delivery_preview.recipients.join(', ')}</div>}
+                        <strong>{t.delivery_preview.title}</strong>
+                        <pre style={{ whiteSpace: 'pre-wrap' }}>{t.delivery_preview.body}</pre>
+                      </details>}
+                    </td>
+                    <td className="mono">{t.latency_ms}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <h4 style={{ marginTop: 14 }}>最终 payload</h4>
           <pre>{JSON.stringify(res.final_payload, null, 2)}</pre>
         </div>

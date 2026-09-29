@@ -134,31 +134,33 @@ export default function EventsPage() {
       ) : items.length === 0 ? (
         <div className="empty">暂无事件</div>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>事件</th>
-              <th>流水线</th>
-              <th>来源</th>
-              <th>状态</th>
-              <th>接收时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((e) => (
-              <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(e.id)}>
-                <td className="mono">#{e.id}<div className="muted">{e.event_uid.slice(0, 12)}</div></td>
-                <td>{pipelineName[e.pipeline_id] ?? `#${e.pipeline_id}`}</td>
-                <td>{e.source}</td>
-                <td>
-                  <EventStatusTag s={e.status} />
-                  {e.dropped_at_node && <div className="muted">@ {e.dropped_at_node}</div>}
-                </td>
-                <td className="mono">{fmtTs(e.received_at)}</td>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>事件</th>
+                <th>流水线</th>
+                <th>来源</th>
+                <th>状态</th>
+                <th>接收时间</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((e) => (
+                <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(e.id)}>
+                  <td className="mono">#{e.id}<div className="muted">{e.event_uid.slice(0, 12)}</div></td>
+                  <td>{pipelineName[e.pipeline_id] ?? `#${e.pipeline_id}`}</td>
+                  <td>{e.source}</td>
+                  <td>
+                    <EventStatusTag s={e.status} />
+                    {e.dropped_at_node && <div className="muted">@ {e.dropped_at_node}</div>}
+                  </td>
+                  <td className="mono">{fmtTs(e.received_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {(detail || detailLoading) && (
@@ -204,25 +206,27 @@ function EventDetailDrawer({
             {(evt.traces ?? []).length === 0 ? (
               <p className="muted">无</p>
             ) : (
-              <table>
-                <thead><tr><th>节点</th><th>动作</th><th>耗时</th></tr></thead>
-                <tbody>
-                  {(evt.traces ?? []).map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.node_key}<div className="muted">{t.node_type}</div></td>
-                      <td>
-                        {t.action === 'drop'
-                          ? <span className="tag failed">丢弃</span>
-                          : t.error
-                            ? <span className="tag warn">降级通过</span>
-                            : <span className="tag success">通过</span>}
-                        {t.error && <div className="error" style={{ marginTop: 4 }}>{t.error}</div>}
-                      </td>
-                      <td className="mono">{t.latency_ms}ms</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <thead><tr><th>节点</th><th>动作</th><th>耗时</th></tr></thead>
+                  <tbody>
+                    {(evt.traces ?? []).map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.node_key}<div className="muted">{t.node_type}</div></td>
+                        <td>
+                          {t.action === 'drop'
+                            ? <span className="tag failed">丢弃</span>
+                            : t.error
+                              ? <span className="tag warn">降级通过</span>
+                              : <span className="tag success">通过</span>}
+                          {t.error && <div className="error" style={{ marginTop: 4 }}>{t.error}</div>}
+                        </td>
+                        <td className="mono">{t.latency_ms}ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {(evt.ai_results ?? []).length > 0 && (

@@ -274,46 +274,48 @@ export default function DataSyncPage() {
 
       <section>
         <h2>同步历史</h2>
-        <table>
-          <thead><tr><th>ID</th><th>模式</th><th>周期</th><th>状态</th><th>进度</th><th>开始</th><th>结束</th></tr></thead>
-          <tbody>
-            {items.map(t => {
-              const pct = t.total > 0 ? Math.round((t.done + t.failed) / t.total * 100) : 0;
-              const isOpen = expanded === t.id;
-              return (
-                <Fragment key={t.id}>
-                  <tr>
-                    <td>{t.id}</td>
-                    <td>{t.mode}</td>
-                    <td>{t.period}</td>
-                    <td><StatusTag s={t.status} /></td>
-                    <td>
-                      {pct}% ({t.done}/{t.total}
-                      {t.failed
-                        ? <>, <button
-                            onClick={() => setExpanded(isOpen ? null : t.id)}
-                            style={{
-                              padding: 0, border: 'none', background: 'none', cursor: 'pointer',
-                              color: 'var(--down)', textDecoration: 'underline',
-                            }}
-                          >失败 {t.failed} {isOpen ? '▴' : '▾'}</button></>
-                        : null})
-                    </td>
-                    <td>{(t.started_at || '').slice(0, 19).replace('T', ' ')}</td>
-                    <td>{(t.finished_at || '').slice(0, 19).replace('T', ' ')}</td>
-                  </tr>
-                  {isOpen
-                    ? <tr>
-                        <td colSpan={7} style={{ background: 'var(--panel, rgba(0,0,0,0.02))' }}>
-                          <FailureDetail taskId={t.id} />
-                        </td>
-                      </tr>
-                    : null}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>ID</th><th>模式</th><th>周期</th><th>状态</th><th>进度</th><th>开始</th><th>结束</th></tr></thead>
+            <tbody>
+              {items.map(t => {
+                const pct = t.total > 0 ? Math.round((t.done + t.failed) / t.total * 100) : 0;
+                const isOpen = expanded === t.id;
+                return (
+                  <Fragment key={t.id}>
+                    <tr>
+                      <td>{t.id}</td>
+                      <td>{t.mode}</td>
+                      <td>{t.period}</td>
+                      <td><StatusTag s={t.status} /></td>
+                      <td>
+                        {pct}% ({t.done}/{t.total}
+                        {t.failed
+                          ? <>, <button
+                              onClick={() => setExpanded(isOpen ? null : t.id)}
+                              style={{
+                                padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+                                color: 'var(--down)', textDecoration: 'underline',
+                              }}
+                            >失败 {t.failed} {isOpen ? '▴' : '▾'}</button></>
+                          : null})
+                      </td>
+                      <td>{(t.started_at || '').slice(0, 19).replace('T', ' ')}</td>
+                      <td>{(t.finished_at || '').slice(0, 19).replace('T', ' ')}</td>
+                    </tr>
+                    {isOpen
+                      ? <tr>
+                          <td colSpan={7} style={{ background: 'var(--panel, rgba(0,0,0,0.02))' }}>
+                            <FailureDetail taskId={t.id} />
+                          </td>
+                        </tr>
+                      : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );
