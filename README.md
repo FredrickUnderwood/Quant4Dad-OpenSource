@@ -8,15 +8,15 @@
 
 ## 安装
 
-准备 Docker、Compose ≥ 2.20 和 Bash。镜像方式免编译，源码方式另需 Git。
+准备 Docker、Compose ≥ 2.20 和 Bash。镜像方式另需 curl，源码方式另需 Git。
 
 **Docker Hub（预构建镜像，待首次发布）**
 
-发布后可下载 [Docker 安装包](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/releases/latest/download/quant4dad-docker.tar.gz)，解压后运行：
-
 ```bash
-cd quant4dad && ./scripts/install.sh --pull
+curl -fsSL https://raw.githubusercontent.com/FredrickUnderwood/Quant4Dad-OpenSource/master/scripts/download.sh -o /tmp/quant4dad-install.sh && bash /tmp/quant4dad-install.sh
 ```
+
+仅下载部署文件到 `./quant4dad`，从 Docker Hub 拉取镜像，无需 Git 或编译环境。
 
 **Git（下载源码并构建）**
 
@@ -24,7 +24,7 @@ cd quant4dad && ./scripts/install.sh --pull
 git clone https://github.com/FredrickUnderwood/Quant4Dad-OpenSource.git && cd Quant4Dad-OpenSource && ./scripts/install.sh
 ```
 
-打开 **http://127.0.0.1:3000**；登录 token：`data/standalone/config/login-token`。添加 `--with-mcp` / `--with-agent` 可启用扩展，两者可同时使用。数据源、模型和通知在「设置」中配置。
+打开 **http://127.0.0.1:3000**；安装目录内的登录 token：`data/standalone/config/login-token`。命令末尾添加 `--with-mcp` / `--with-agent` 可启用扩展。数据源、模型和通知在「设置」中配置。
 
 MCP 默认 `http://127.0.0.1:8090/mcp`，使用 `data/standalone/config/mcp-token`；该凭据包含写工具权限。配置、凭据及 SQLite 数据保存在 `data/standalone`，升级前备份。
 

@@ -98,5 +98,40 @@ if 'pull' in args and os.environ.get('DOCKER_TEST_PULL_FAIL'):
                 self.assertFalse(any(a[0] == 'run' or 'up' in a or 'pull' in a for a in self.calls()))
 
 
+class DownloadTests(unittest.TestCase):
+    def test_download_preserves_data_and_forwards_extensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bindir = root / 'bin'
+            bindir.mkdir()
+            target = root / 'installation'
+            (target / 'data').mkdir(parents=True)
+            (target / 'data/keep').write_text('existing data')
+            curl = bindir / 'curl'
+            curl.write_text('''#!/usr/bin/env python3
+import os, pathlib, sys
+args = sys.argv[1:]
+url = args[args.index('--output') - 1]
+if os.environ.get('FAIL_DOWNLOAD') and url.endswith('compose.yaml'):
+    sys.exit(22)
+content = 'example'
+if url.endswith('install.sh'):
+    content = '#!/usr/bin/env bash\\nprintf "%s\\\\n" "$@" > "$Q4D_INSTALL_DIR/arguments"\\n'
+pathlib.Path(args[args.index('--output') + 1]).write_text(content)
+''')
+            curl.chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if not k.startswith('Q4D_')}
+            env.update(PATH=str(bindir) + os.pathsep + os.environ['PATH'], Q4D_INSTALL_DIR=str(target))
+            command = ['bash', str(ROOT / 'scripts/download.sh'), '--with-agent']
+            result = subprocess.run(command, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((target / 'arguments').read_text().splitlines(), ['--pull', '--with-agent'])
+            self.assertEqual((target / 'data/keep').read_text(), 'existing data')
+            (target / 'scripts/install.sh').write_text('prior installer')
+            env['FAIL_DOWNLOAD'] = '1'
+            self.assertNotEqual(subprocess.run(command, env=env, capture_output=True).returncode, 0)
+            self.assertEqual((target / 'scripts/install.sh').read_text(), 'prior installer')
+
+
 if __name__ == '__main__':
     unittest.main()

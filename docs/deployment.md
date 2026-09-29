@@ -8,7 +8,14 @@ The first Docker Hub release is pending publication. Until a release exists, use
 
 Public image locations: [API](https://hub.docker.com/r/fredrick19/quant4dad-opensource-api), [Web](https://hub.docker.com/r/fredrick19/quant4dad-opensource-web), [MCP](https://hub.docker.com/r/fredrick19/quant4dad-opensource-mcp), [Agent](https://hub.docker.com/r/fredrick19/quant4dad-opensource-agent).
 
-Published releases provide [quant4dad-docker.tar.gz](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/releases/latest/download/quant4dad-docker.tar.gz). This small bundle contains the installer, Compose file and version-pinned image references; Git, Go, Node.js and a C compiler are not required on the host. Extract it, enter `quant4dad`, and run:
+The [download script](../scripts/download.sh) fetches only the installer, Compose file, public image references and license into `./quant4dad`, then pulls the images. It needs curl and Bash; Git, Go, Node.js and a C compiler are not required on the host:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/FredrickUnderwood/Quant4Dad-OpenSource/master/scripts/download.sh -o /tmp/quant4dad-install.sh
+bash /tmp/quant4dad-install.sh
+```
+
+Set `Q4D_INSTALL_DIR` to change the installation directory, or `Q4D_RELEASE_REF` to select a published Git tag/commit. The downloader fetches every deployment file before updating the installation; it preserves `data/standalone` and refuses to overwrite a Git checkout. Subsequent updates can use the same download command. From the installation directory:
 
 ```sh
 ./scripts/install.sh --pull
@@ -16,7 +23,7 @@ Published releases provide [quant4dad-docker.tar.gz](https://github.com/Fredrick
 ./scripts/install.sh --pull --with-mcp --with-agent
 ```
 
-`--pull` downloads every enabled service image before generating configuration or starting containers. A failed pull stops installation. Re-running the command preserves the enabled extensions, credentials and application data. To upgrade, extract the next bundle over the same installation directory and rerun it; keep `data/standalone` intact and back it up first. A custom state directory must be selected with the same `--state-dir` each time.
+`--pull` downloads every enabled service image before generating configuration or starting containers. A failed pull stops installation. Re-running the command preserves the enabled extensions, credentials and application data. Keep `data/standalone` intact and back it up before upgrades. A custom state directory must be selected with the same `--state-dir` each time.
 
 From a source checkout, `./scripts/install.sh --pull` uses the public `fredrick19` images in `deploy/images.env`. To select a particular published version:
 
@@ -138,6 +145,8 @@ Re-running the installer preserves credentials, stored data, enabled profiles, a
 Configure the GitHub repository variable `DOCKERHUB_USERNAME=fredrick19`, secret `DOCKERHUB_TOKEN` (write access to the four image repositories), and optionally `DOCKERHUB_NAMESPACE` for an organization. The `quant4dad-opensource-api`, `-web`, `-mcp`, and `-agent` repositories must be public for anonymous installation.
 
 Run **Publish Docker images** with a stable version such as `v0.1.0`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags. It attaches a small installer archive and SHA256 file to the GitHub release. A failed build or smoke check prevents publication of the combined release tags and download bundle.
+
+Workflow releases additionally provide [quant4dad-docker.tar.gz](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/releases/latest/download/quant4dad-docker.tar.gz), with version-pinned references. Extract it over the installation directory and run `./scripts/install.sh --pull`.
 
 The archive includes version-pinned image names in `deploy/images.env`, installer, Compose configuration and license; it contains no source build context, credentials or user data. Local packaging is also available:
 
