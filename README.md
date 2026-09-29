@@ -2,7 +2,7 @@
 
 一个可以独立部署的量化研究工作台：行情管理与分析、可校验的策略、回测、事件流水线，以及可选的 MCP 和 Agent Runtime。
 
-本仓库不包含任何内置行情或资讯爬虫。你可以导入自己有权使用的 CSV 数据，或实现保留的数据源接口。默认使用 SQLite，不需要配置中心或运维平台。
+本仓库不包含第三方网站行情或资讯爬虫。你可以在设置中接入 Tushare 官方 API、自己的免费/自托管 HTTP 数据接口，或导入自己有权使用的 CSV 数据。默认使用 SQLite，不需要配置中心或运维平台。
 
 ## 一行启动
 
@@ -31,7 +31,11 @@ Agent Runtime 启用后，在 Web 设置页配置自己的模型接口和密钥�
 
 ## 接入数据
 
-首次安装不抓取网络行情。提供了纯生成的演示 CSV，它们不是实际行情：
+首次安装默认使用手动导入，不会自动请求网络行情。登录后在「设置 → 数据接入」选择 Tushare 并填写自己的 token，或选择自有 HTTP 接口并填写服务地址及可选 token。保存后对新采集任务生效；自动采集开关、每日时刻、回补年数、ETF 范围、限频和并发也在同一处配置。
+
+自有接口需要实现项目定义的 JSON 协议，任意行情网站地址不能直接替代。Tushare 数据权限和额度取决于用户自己的账号。详见 [数据源接口协议](docs/data-provider.md)。
+
+同时提供了纯生成的演示 CSV，它们不是实际行情：
 
 ```bash
 mkdir -p data/standalone/data/import
@@ -57,11 +61,15 @@ docker compose --env-file data/standalone/deployment.env -f deploy/compose.yaml 
 - 31 项 MCP 业务工具，与 Agent 使用同一业务实现；独立 token 和会话隔离。
 - 可选 Agent Runtime、模型管理、会话、工具调用审计和写操作审批。
 
-数据源接口位于 `internal/repository/datasource`。`providers` 包默认为空，供用户注册自己的实现；没有安装 provider 时，同步请求会明确返回不可用，已有数据查询与回测不受影响。历史数据的复权来源标记仍保留兼容。
+数据源接口位于 `internal/repository/datasource`。`providers` 包注册官方 Tushare API 和用户自有 HTTP 接口适配器，也保留用户注册扩展的方式；手动模式下采集请求会明确返回不可用，已有数据查询与回测不受影响。只有验证过的官方 ETF 复权因子会得到可信来源标记。
 
 ## 配置、运维和开发
 
-生成的私有配置位于 `data/standalone/config/`，运行时只读取本地 YAML。修改服务配置后重启服务。SQLite、工具文件和 Agent 状态都位于 `data/standalone` 下，备份这个目录即可保留本机数据和凭据；使用 MySQL 时另行备份数据库。
+日常配置集中在设置页：数据接入、模型与助手、OSS 事件归档、回测费用、通知、安全与部署。完整必填项、可选项和生效方式见 [用户配置清单](docs/settings.md)。
+
+数据源和 OSS 凭据保存在 `data/standalone/data/settings/integrations.yaml`，目录权限 `0700`、文件权限 `0600`，保存后即时用于后续任务，API 不返回凭据原值。OSS 用于流水线事件、执行日志和 AI 结果冷归档；它会在完整验证上传后清理超过保留期的本地事件，**不备份行情或整个数据库**。连接检测只读取 Bucket 信息，不执行归档。
+
+安装阶段的数据库、端口、扩展开关等仍保存在 `data/standalone/config/` 和 `deployment.env`，修改后需重新创建相应服务。SQLite、工具文件和 Agent 状态都位于 `data/standalone` 下，备份这个目录即可保留本机数据和凭据；使用 MySQL 时另行备份数据库。
 
 [独立部署与回归说明](docs/deployment.md) 包含配置布局、MySQL、四种扩展组合、健康检查和日常操作。
 

@@ -38,6 +38,8 @@ type AutoSyncScheduler struct {
 	lastTaskID int64
 	lastErr    string
 	nextRunAt  *time.Time
+	changed    chan struct{}
+	revision   uint64
 }
 
 func NewAutoSyncScheduler(app *DataSyncApp, enabled bool, dailyTime string) (*AutoSyncScheduler, error) {
@@ -45,7 +47,25 @@ func NewAutoSyncScheduler(app *DataSyncApp, enabled bool, dailyTime string) (*Au
 	if err != nil {
 		return nil, err
 	}
-	return &AutoSyncScheduler{app: app, enabled: enabled, hour: h, min: m}, nil
+	return &AutoSyncScheduler{app: app, enabled: enabled, hour: h, min: m, changed: make(chan struct{}, 1)}, nil
+}
+
+// Update changes the next scheduled run without altering in-flight sync tasks.
+func (s *AutoSyncScheduler) Update(enabled bool, dailyTime string) error {
+	h, m, err := parseDailyTime(dailyTime)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.enabled, s.hour, s.min = enabled, h, m
+	s.revision++
+	s.nextRunAt = nil
+	s.mu.Unlock()
+	select {
+	case s.changed <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 func parseDailyTime(s string) (int, int, error) {
@@ -83,22 +103,33 @@ func (s *AutoSyncScheduler) Status() AutoSyncStatus {
 }
 
 // Start launches a goroutine that sleeps until the next daily_time and then triggers;
-// it returns a cancel for shutdown. With Enabled=false it returns a no-op cancel.
+// it returns a cancel for shutdown. Disabled schedulers wait for a settings update.
 func (s *AutoSyncScheduler) Start() context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
-	if !s.enabled {
-		return cancel
-	}
 	go s.loop(ctx)
 	return cancel
 }
 
 func (s *AutoSyncScheduler) loop(ctx context.Context) {
 	for {
-		next := s.computeNext(time.Now())
 		s.mu.Lock()
-		s.nextRunAt = &next
+		enabled, revision := s.enabled, s.revision
+		var next time.Time
+		if enabled {
+			next = s.computeNextLocked(time.Now())
+			s.nextRunAt = &next
+		} else {
+			s.nextRunAt = nil
+		}
 		s.mu.Unlock()
+		if !enabled {
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.changed:
+				continue
+			}
+		}
 
 		wait := time.Until(next)
 		logger.L().Info("auto sync scheduled",
@@ -109,13 +140,22 @@ func (s *AutoSyncScheduler) loop(ctx context.Context) {
 		case <-ctx.Done():
 			timer.Stop()
 			return
+		case <-s.changed:
+			timer.Stop()
+			continue
 		case <-timer.C:
-			s.trigger(ctx)
+			s.triggerRevision(ctx, revision)
 		}
 	}
 }
 
 func (s *AutoSyncScheduler) computeNext(now time.Time) time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.computeNextLocked(now)
+}
+
+func (s *AutoSyncScheduler) computeNextLocked(now time.Time) time.Time {
 	loc := now.Location()
 	candidate := time.Date(now.Year(), now.Month(), now.Day(), s.hour, s.min, 0, 0, loc)
 	if !candidate.After(now) {
@@ -125,13 +165,28 @@ func (s *AutoSyncScheduler) computeNext(now time.Time) time.Time {
 }
 
 func (s *AutoSyncScheduler) trigger(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.triggerLocked(ctx)
+}
+
+func (s *AutoSyncScheduler) triggerRevision(ctx context.Context, revision uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.enabled && s.revision == revision {
+		s.triggerLocked(ctx)
+	}
+}
+
+// Admission and configuration replacement share the same gate. When disabling
+// returns, an already-fired timer cannot enqueue a new task afterwards.
+func (s *AutoSyncScheduler) triggerLocked(ctx context.Context) {
 	task := &domain.DataSyncTask{
 		Mode:   domain.DataSyncModeIncremental,
 		Period: domain.Bar1d,
 	}
 	out, err := s.app.Enqueue(ctx, task)
 	now := time.Now()
-	s.mu.Lock()
 	s.lastRunAt = &now
 	if err != nil {
 		s.lastErr = err.Error()
@@ -143,5 +198,4 @@ func (s *AutoSyncScheduler) trigger(ctx context.Context) {
 		}
 		logger.L().Info("auto sync enqueued", zap.Int64("task_id", s.lastTaskID))
 	}
-	s.mu.Unlock()
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -11,13 +12,17 @@ import (
 	"github.com/quant4dad/internal/logger"
 )
 
-// ArchiveHandler exposes the event archive's status and a manual trigger, so a round can be
-// run before going live to verify OSS connectivity.
+// ArchiveHandler exposes destructive event archiving. Connection probes use a
+// separate read-only settings endpoint and never call RunOnce.
+type archiveRunner interface {
+	Status() application.ArchiveStatus
+	RunOnce(context.Context) (int, int64, error)
+}
 type ArchiveHandler struct {
-	scheduler *application.ArchiveScheduler
+	scheduler archiveRunner
 }
 
-func NewArchiveHandler(scheduler *application.ArchiveScheduler) *ArchiveHandler {
+func NewArchiveHandler(scheduler archiveRunner) *ArchiveHandler {
 	return &ArchiveHandler{scheduler: scheduler}
 }
 
@@ -28,6 +33,13 @@ func (h *ArchiveHandler) Register(rg *gin.RouterGroup) {
 }
 
 func (h *ArchiveHandler) status(c *gin.Context) {
+	if manager, ok := h.scheduler.(interface {
+		ManagedStatus() application.ManagedArchiveStatus
+	}); ok {
+		okResponse := manager.ManagedStatus()
+		c.JSON(http.StatusOK, okResponse)
+		return
+	}
 	ok(c, h.scheduler.Status())
 }
 
@@ -39,6 +51,10 @@ func (h *ArchiveHandler) run(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, application.ErrArchiveBusy) {
 			c.JSON(http.StatusConflict, ErrorResponse{Code: 409, Message: err.Error()})
+			return
+		}
+		if errors.Is(err, application.ErrArchiveUnconfigured) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Code: 400, Message: "请先在设置中配置 OSS 归档"})
 			return
 		}
 		logger.L().Error("manual archive run failed", zap.Error(err))

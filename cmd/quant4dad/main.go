@@ -211,25 +211,29 @@ func main() {
 	pipelineReg := nodes.BuildRegistry(llmResolver, notifyResolver)
 	pipelineSvc := service.NewPipelineService(pipelineRepo, pipelineReg)
 
-	// 4) Datasource client. Implementations are registered by the providers package's
-	// blank imports. With none registered, New returns the placeholder and the service
-	// starts as usual — backtests, pipelines and queries over stored data don't depend
-	// on fetching — and only triggering a sync reports ErrNoProvider.
-	dsClient, err := datasource.New(cfg.Datasource)
+	// 4) User integration settings live in a private writable file. Missing files
+	// inherit the deployment defaults; saving in Settings takes effect for new jobs.
+	integrationRepo, err := repository.NewIntegrationSettingsRepository(cfg.Settings.Path, config.InitialIntegrations(cfg))
 	if err != nil {
-		logger.L().Fatal("init datasource failed", zap.Error(err))
+		logger.L().Fatal("load private integration settings failed")
 	}
-	if providers := datasource.Providers(); len(providers) == 0 {
-		logger.L().Warn("no datasource provider registered: market-data sync is unavailable, " +
-			"see internal/repository/datasource/README.md to plug one in")
-	} else {
-		logger.L().Info("datasource ready",
-			zap.String("provider", dsClient.Name()), zap.Strings("registered", providers))
+	integrationSvc, err := service.NewIntegrationSettingService(integrationRepo)
+	if err != nil {
+		logger.L().Fatal("invalid private integration settings")
+	}
+	integrations := integrationSvc.Snapshot()
+	prepared, err := integrationSvc.Prepare(integrations)
+	if err != nil {
+		logger.L().Fatal("initialize integration clients failed")
+	}
+	dsClient := prepared.Datasource
+	if datasource.IsUnavailable(dsClient) {
+		logger.L().Info("market collection disabled; choose a data source in Settings or import CSV")
 	}
 
 	// 5) Application layer.
 	backtestApp := application.NewBacktestApp(backtestSvc, strategySvc, costSvc, barRepo, cfg.Backtest.WorkerPool)
-	datasyncApp := application.NewDataSyncApp(cfg.Datasource, datasyncSvc, instrumentSvc, barRepo, dsClient)
+	datasyncApp := application.NewDataSyncApp(integrations.Market.Datasource(), datasyncSvc, instrumentSvc, barRepo, dsClient)
 	coverageScanner := application.NewCoverageScanner(coverageRepo, instrumentRepo)
 	// In CSV mode bars never reach SQL, so there is nothing to aggregate over; every
 	// other backend gets the periodic scan.
@@ -238,7 +242,7 @@ func main() {
 		stopCoverageCron = coverageScanner.StartCron(0)
 	}
 
-	autoSync, err := application.NewAutoSyncScheduler(datasyncApp, cfg.AutoSync.Enabled, cfg.AutoSync.DailyTime)
+	autoSync, err := application.NewAutoSyncScheduler(datasyncApp, integrations.Market.AutoSync.Enabled, integrations.Market.AutoSync.DailyTime)
 	if err != nil {
 		logger.L().Fatal("init auto sync scheduler failed", zap.Error(err))
 	}
@@ -275,46 +279,32 @@ func main() {
 		stopNews = newsCollector.Start()
 	}
 
-	// Hot/cold tiering for the three event tables: at the scheduled time, expired whole
-	// days are exported to OSS and then deleted from MySQL. The news layer is not
-	// archived yet. As long as a bucket is configured we build the scheduler and
-	// register the manual trigger endpoint, which makes it easy to verify OSS
-	// connectivity before going live; enabled only decides whether the daily cron
-	// runs — Start() is a no-op when enabled=false.
-	var (
-		archiver    *application.ArchiveScheduler
-		stopArchive context.CancelFunc
-	)
-	if cfg.Archive.OSS.Bucket != "" {
-		cold, err := coldstore.NewOSSStore(cfg.Archive.OSS)
-		if err != nil {
-			logger.L().Fatal("init archive coldstore failed", zap.Error(err))
-		}
-		archiver, err = application.NewArchiveScheduler(eventRepo, cold, cfg.Archive)
-		if err != nil {
-			logger.L().Fatal("init archive scheduler failed", zap.Error(err))
-		}
-		if !*noBackground {
-			stopArchive = archiver.Start()
-		}
+	// A single controller serializes archive runs and settings changes. Its own
+	// scheduler can be enabled from Settings after an initially unconfigured boot.
+	integrationApp, err := application.NewIntegrationSettingsApplication(integrationSvc, datasyncApp, autoSync,
+		func(c config.ArchiveConfig, cold coldstore.ColdStore) (*application.ArchiveScheduler, error) {
+			return application.NewArchiveScheduler(eventRepo, cold, c)
+		}, !*noBackground)
+	if err != nil {
+		logger.L().Fatal("initialize runtime integration settings failed")
 	}
+	stopArchive := integrationApp.Start()
 
 	// 6) Handlers. The UI has moved to its own React + Go Web container (see web/), so
 	// the backend serves only the API.
 	handlers := handler.Handlers{
-		Readiness:  sqlDB.PingContext,
-		Strategy:   handler.NewStrategyHandler(strategySvc),
-		Indicator:  handler.NewIndicatorHandler(indicatorSvc),
-		Instrument: handler.NewInstrumentHandler(instrumentSvc),
-		Cost:       handler.NewCostHandler(costSvc),
-		Backtest:   handler.NewBacktestHandler(backtestSvc, backtestApp),
-		DataSync:   handler.NewDataSyncHandler(datasyncSvc, datasyncApp, coverageScanner, autoSync),
-		Pipeline:   handler.NewPipelineHandler(pipelineSvc, pipelineApp),
-		Setting:    handler.NewSettingHandler(settingSvc),
-		News:       handler.NewNewsHandler(newsSvc, newsCollector),
-	}
-	if archiver != nil {
-		handlers.Archive = handler.NewArchiveHandler(archiver)
+		Readiness:          sqlDB.PingContext,
+		Strategy:           handler.NewStrategyHandler(strategySvc),
+		Indicator:          handler.NewIndicatorHandler(indicatorSvc),
+		Instrument:         handler.NewInstrumentHandler(instrumentSvc),
+		Cost:               handler.NewCostHandler(costSvc),
+		Backtest:           handler.NewBacktestHandler(backtestSvc, backtestApp),
+		DataSync:           handler.NewDataSyncHandler(datasyncSvc, datasyncApp, coverageScanner, autoSync),
+		Pipeline:           handler.NewPipelineHandler(pipelineSvc, pipelineApp),
+		Setting:            handler.NewSettingHandler(settingSvc),
+		IntegrationSetting: handler.NewIntegrationSettingHandler(integrationApp, cfg, !*noBackground),
+		News:               handler.NewNewsHandler(newsSvc, newsCollector),
+		Archive:            handler.NewArchiveHandler(integrationApp),
 	}
 	var agentCatalog *application.ToolCatalogApplication
 	var stopAgentBacktests func()

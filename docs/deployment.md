@@ -12,7 +12,7 @@ Open `http://127.0.0.1:3000`. The installer prints the path to the private login
 
 The installation is single-owner. Generated tokens are random and distinct. Configuration and credential files have mode `0600`, private directories `0700`; containers run with the installation user's non-root UID (root installations use UID 65532). The Web container receives only its own non-secret proxy configuration. Re-running the installer preserves tokens, data, and enabled profiles and recreates containers to apply configuration changes. Do not run two installers against the same state directory concurrently.
 
-No market-data or news crawlers ship in this repository. Scheduled collection is disabled. Import your own CSV data using the bundled `quant4dad-import` command, or implement and register a provider through the datasource interface. See the import command's `--help` and the examples directory.
+No third-party website market-data or news crawlers ship in this repository. Scheduled collection is disabled initially. In Settings, select the official Tushare API with your own token, or a user-provided HTTP service implementing the documented JSON contract. Manual CSV import through the bundled `quant4dad-import` command remains available. See [data providers](data-provider.md), [user settings](settings.md), and the examples directory.
 
 ## Optional extensions
 
@@ -60,7 +60,11 @@ The API also supports explicit one-off `--migration check`, `--migration apply`,
 
 Use `--bind 0.0.0.0` to listen beyond loopback. For Internet access, put an HTTPS reverse proxy in front of Web and MCP. Set `web.trusted_proxies` to the trusted ingress addresses, and `server.trusted_proxies` to the Web proxy addresses; each hop verifies its immediate peer before honoring `X-Forwarded-Proto`. Do not publish the internal API or Agent Bridge. The full MCP endpoint rejects browser `Origin` headers.
 
-Deployment settings are saved in `data/standalone/deployment.env`; business configuration is in `config/api.yaml`. Review and edit these private files locally as needed. Avoid `docker compose config` without `--quiet` when handling private overrides. Use the printed `docker compose --env-file ... -f ...` command to inspect services or logs. `down` stops the installation; it does not delete the bind-mounted state directory.
+Deployment settings are saved in `data/standalone/deployment.env`; startup configuration is in `config/api.yaml`. API Settings saves data-source and OSS integrations in `data/settings/integrations.yaml` under the state directory (override with startup `settings.path`). Its owner must match the API user, directory mode must be `0700`, and file mode `0600`; symlink files/directories are rejected. The API writes atomically and checks revisions to prevent stale browser tabs from overwriting one another. Do not share one private settings file between multiple API processes or edit it while the API is running. It takes precedence over the corresponding startup YAML defaults. Reinstallation preserves this data directory.
+
+Existing collection tasks keep their original client/configuration snapshot. New tasks use the saved settings. An archive run blocks changes to its archive configuration until it finishes; no new automatic work is started by settings when `--no-background` is active. The Settings page includes a read-only deployment checklist for options that still require installation or restart.
+
+Review and edit startup files locally as needed. Avoid `docker compose config` without `--quiet` when handling private overrides. Use the printed `docker compose --env-file ... -f ...` command to inspect services or logs. `down` stops the installation; it does not delete the bind-mounted state directory.
 
 `--no-build` uses already loaded images. Default image names are `quant4dad-opensource-api:local`, `quant4dad-opensource-web:local`, `quant4dad-opensource-mcp:local`, and `quant4dad-opensource-agent:local`. Set their `Q4D_*_IMAGE` environment variables on the first install, or edit the saved deployment settings on subsequent installs. Updating uses the same install command against the new source; back up database and state before an upgrade.
 

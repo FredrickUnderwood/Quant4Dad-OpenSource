@@ -20,25 +20,26 @@ import (
 )
 
 type Handlers struct {
-	Readiness       health.Check
-	Strategy        *StrategyHandler
-	Indicator       *IndicatorHandler
-	Instrument      *InstrumentHandler
-	Cost            *CostHandler
-	Backtest        *BacktestHandler
-	DataSync        *DataSyncHandler
-	Pipeline        *PipelineHandler
-	Setting         *SettingHandler
-	News            *NewsHandler
-	Archive         *ArchiveHandler
-	AgentBootstrap  *AgentBootstrapHandler
-	AgentModelProbe *AgentModelProbeHandler
-	AgentSession    *AgentSessionHandler
-	AgentRun        *AgentRunHandler
-	AgentGateway    *AgentToolGatewayHandler
-	AgentApproval   *AgentApprovalHandler
-	AgentToolResult *AgentToolResultHandler
-	ExternalMCP     http.Handler
+	Readiness          health.Check
+	Strategy           *StrategyHandler
+	Indicator          *IndicatorHandler
+	Instrument         *InstrumentHandler
+	Cost               *CostHandler
+	Backtest           *BacktestHandler
+	DataSync           *DataSyncHandler
+	Pipeline           *PipelineHandler
+	Setting            *SettingHandler
+	IntegrationSetting *IntegrationSettingHandler
+	News               *NewsHandler
+	Archive            *ArchiveHandler
+	AgentBootstrap     *AgentBootstrapHandler
+	AgentModelProbe    *AgentModelProbeHandler
+	AgentSession       *AgentSessionHandler
+	AgentRun           *AgentRunHandler
+	AgentGateway       *AgentToolGatewayHandler
+	AgentApproval      *AgentApprovalHandler
+	AgentToolResult    *AgentToolResultHandler
+	ExternalMCP        http.Handler
 }
 
 type Server struct {
@@ -146,6 +147,9 @@ func NewServer(cfg *config.Config, h Handlers) *Server {
 		if cfg.Agent.Enabled {
 			h.Setting.RegisterAgentModels(v1)
 		}
+	}
+	if h.IntegrationSetting != nil {
+		h.IntegrationSetting.Register(v1)
 	}
 	if cfg.Agent.Enabled && cfg.Agent.ModelProbe.Enabled && h.AgentModelProbe != nil {
 		h.AgentModelProbe.Register(v1)

@@ -30,6 +30,9 @@ func newRateLimiter(perMin int) *rateLimiter {
 // Wait blocks until the next available slot, or until ctx is cancelled. A nil
 // receiver means limiting is disabled and the call passes straight through.
 func (l *rateLimiter) Wait(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if l == nil {
 		return nil
 	}

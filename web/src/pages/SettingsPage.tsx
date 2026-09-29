@@ -7,17 +7,25 @@ import type {
 import { NEWS_SOURCE_LABEL } from '../types';
 import Select from '../components/Select';
 import { AgentModelSettings } from '../agent/ModelSettings';
+import { ArchiveSettings, MarketSettings, SETTINGS_DOCS, useIntegrationSettings } from '../settings/IntegrationSettings';
+import { CostSettings } from '../settings/CostSettings';
+import { DeploymentSettings, useDeploymentSettings } from '../settings/DeploymentSettings';
 
 // The settings page's section list, shared by the index on the left and the continuous ledger on
 // the right. Adding a section means adding one row here.
 const MODULES = [
-  { id: 'llm', no: '01', label: '大模型', hint: 'Provider 接入' },
-  { id: 'news', no: '02', label: '资讯数据源', hint: '扩展接入' },
-  { id: 'notify', no: '03', label: '触达通道', hint: '邮箱 · 飞书' },
+  { id: 'market', no: '01', label: '数据接入', hint: 'CSV · 行情 · 资讯' },
+  { id: 'models', no: '02', label: '模型与助手', hint: '模型接入与连接检查' },
+  { id: 'archive', no: '03', label: 'OSS 事件归档', hint: '归档与本地清理' },
+  { id: 'backtest', no: '04', label: '回测', hint: '费用模型与并发' },
+  { id: 'notify', no: '05', label: '通知', hint: '邮箱 · 飞书' },
+  { id: 'deployment', no: '06', label: '安全与部署', hint: '脱敏状态与修改指引' },
 ] as const;
 
 export default function SettingsPage() {
   const active = useScrollSpy(MODULES.map((m) => m.id));
+  const integrations = useIntegrationSettings();
+  const deployment = useDeploymentSettings();
 
   const jump = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -48,10 +56,17 @@ export default function SettingsPage() {
       </nav>
 
       <div className="settings-sheet">
-        <LLMSettings />
-        <AgentModelSettings />
-        <NewsSourceSettings />
+        <section className="settings-module settings-intro"><h1>设置</h1><p>先选择数据接入方式；使用助手或 AI 流水线时再配置模型。OSS 归档与通知按需启用，基础部署不需要这些凭据。</p><a href={`${SETTINGS_DOCS}settings.md`} target="_blank" rel="noreferrer">配置清单与生效方式</a></section>
+        <MarketSettings state={integrations}><NewsSourceSettings /></MarketSettings>
+        <div id="models" className="settings-module">
+          <LLMSettings />
+          <p className="settings-notice">模型地址、默认模型与密钥供流水线和助手共用。{deployment.view?.agent_enabled ? 'Agent 已启用，可在下方设置模型能力并检查连接。' : '如需使用助手，请先通过安装器启用 Agent Runtime；模型仍可供 AI 流水线使用。'} <a href="#deployment">查看扩展部署状态</a></p>
+          <AgentModelSettings />
+        </div>
+        <ArchiveSettings state={integrations} />
+        <CostSettings workers={deployment.view?.backtest_workers} />
         <NotifySettings />
+        <DeploymentSettings state={deployment} />
       </div>
     </div>
   );
@@ -174,7 +189,7 @@ function LLMSettings() {
   return (
     <section id="llm" className="settings-module">
       <div className="module-head">
-        <span className="module-no">01</span>
+        <span className="module-no">02</span>
         <div>
           <h2>大模型</h2>
           <p className="muted module-sub">
@@ -321,11 +336,10 @@ function NewsSourceSettings() {
   };
 
   return (
-    <section id="news" className="settings-module">
+    <section id="news" className="settings-subsection">
       <div className="module-head">
-        <span className="module-no">02</span>
         <div>
-          <h2>资讯数据源</h2>
+          <h3>资讯数据源扩展</h3>
           <p className="muted module-sub">
             配置已安装的数据源扩展。流水线可订阅扩展提供的资讯，也可通过事件接入接口接收你自己的数据。
           </p>
@@ -418,7 +432,7 @@ function NotifySettings() {
   return (
     <section id="notify" className="settings-module">
       <div className="module-head">
-        <span className="module-no">03</span>
+        <span className="module-no">05</span>
         <div>
           <h2>触达通道</h2>
           <p className="muted module-sub">

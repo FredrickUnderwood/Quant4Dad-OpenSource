@@ -3,6 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -24,8 +28,8 @@ func (s *CostService) EnsureDefault(ctx context.Context) error {
 }
 
 func (s *CostService) Create(ctx context.Context, c *domain.Cost) error {
-	if c.Name == "" {
-		return errors.New("cost name required")
+	if err := validateCost(c); err != nil {
+		return err
 	}
 	if err := s.repo.Create(ctx, c); err != nil {
 		return err
@@ -40,6 +44,12 @@ func (s *CostService) Create(ctx context.Context, c *domain.Cost) error {
 }
 
 func (s *CostService) Update(ctx context.Context, c *domain.Cost) error {
+	if err := validateCost(c); err != nil {
+		return err
+	}
+	if c.ID <= 0 {
+		return errors.New("cost id must be positive")
+	}
 	if err := s.repo.Update(ctx, c); err != nil {
 		return err
 	}
@@ -84,5 +94,25 @@ func (s *CostService) SetDefault(ctx context.Context, id int64) error {
 		return err
 	}
 	logger.L().Info("cost default updated", zap.Int64("id", id))
+	return nil
+}
+
+// Validate at the service boundary so HTTP clients cannot bypass UI checks.
+func validateCost(c *domain.Cost) error {
+	if c == nil || !utf8.ValidString(c.Name) {
+		return errors.New("invalid cost model")
+	}
+	c.Name = strings.TrimSpace(c.Name)
+	if c.Name == "" || utf8.RuneCountInString(c.Name) > 64 || strings.IndexFunc(c.Name, unicode.IsControl) >= 0 {
+		return errors.New("cost name must contain 1 to 64 characters without control characters")
+	}
+	for _, value := range []float64{c.CommissionRate, c.MinCommission, c.StampDutyRate, c.SlippageBps} {
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			return errors.New("cost values must be finite and non-negative")
+		}
+	}
+	if c.CommissionRate > 1 || c.StampDutyRate > 1 || c.SlippageBps > 10000 {
+		return errors.New("cost rates cannot exceed 1 and slippage cannot exceed 10000 bps")
+	}
 	return nil
 }

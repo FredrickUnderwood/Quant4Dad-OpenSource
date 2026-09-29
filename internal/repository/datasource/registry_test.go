@@ -41,15 +41,15 @@ func TestNewWithoutProvidersReturnsUnavailable(t *testing.T) {
 	}
 }
 
-// With exactly one implementation registered and no provider named in config, use it.
-func TestNewDefaultsToSoleProvider(t *testing.T) {
+// Registration never enables a source implicitly.
+func TestNewWithoutSelectionRemainsUnavailable(t *testing.T) {
 	registerForTest(t, "only", stubCtor("only"))
 	client, err := New(config.DatasourceConfig{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if client.Name() != "only" {
-		t.Errorf("want only, got %s", client.Name())
+	if !IsUnavailable(client) {
+		t.Errorf("want unavailable, got %s", client.Name())
 	}
 }
 
@@ -58,8 +58,14 @@ func TestNewDefaultsToSoleProvider(t *testing.T) {
 func TestNewRequiresProviderWhenAmbiguous(t *testing.T) {
 	registerForTest(t, "one", stubCtor("one"))
 	registerForTest(t, "two", stubCtor("two"))
-	if _, err := New(config.DatasourceConfig{}); err == nil {
-		t.Fatal("should error with several implementations and no provider named")
+	for _, name := range []string{"", "manual"} {
+		c, err := New(config.DatasourceConfig{Provider: name})
+		if err != nil || !IsUnavailable(c) {
+			t.Fatalf("manual selection enabled a provider: %v %v", c, err)
+		}
+		if err := c.(Prober).Probe(context.Background()); !errors.Is(err, ErrNoProvider) {
+			t.Fatal(err)
+		}
 	}
 	client, err := New(config.DatasourceConfig{Provider: "two"})
 	if err != nil {

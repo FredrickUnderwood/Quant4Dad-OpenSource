@@ -2,7 +2,7 @@
 // tables. At the scheduled time each day it exports whole days of events whose
 // received_at falls outside the retention window — along with their traces and
 // ai_results — to object storage as jsonl.gz, and only after verifying the upload does
-// it delete them from MySQL in throttled batches, leaving the live database carrying
+// it delete them from the database in throttled batches, leaving the live database carrying
 // hot data only.
 package application
 
@@ -10,14 +10,17 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 
 	"github.com/quant4dad/config"
@@ -176,6 +179,9 @@ func (s *ArchiveScheduler) trigger(ctx context.Context) {
 // hits the per-run day cap. It returns how many days were processed and how many events
 // were deleted in total. The handler can trigger it manually.
 func (s *ArchiveScheduler) RunOnce(ctx context.Context) (days int, events int64, err error) {
+	if s.cold == nil {
+		return 0, 0, coldstore.ErrStoreUnavailable
+	}
 	if !s.running.CompareAndSwap(false, true) {
 		return 0, 0, ErrArchiveBusy
 	}
@@ -203,100 +209,41 @@ func (s *ArchiveScheduler) RunOnce(ctx context.Context) (days int, events int64,
 		}
 		dayEnd := day.AddDate(0, 0, 1)
 		n, e := s.archiveDay(ctx, day, dayEnd)
+		events += n
 		if e != nil {
-			return days, events, fmt.Errorf("archive day %s: %w", day.Format("2006-01-02"), e)
+			return days, events, e
 		}
 		days++
-		events += n
 	}
 	logger.L().Warn("archive hit per-run day cap, remaining days deferred to next run", zap.Int("cap", maxDaysPerRun))
 	return days, events, nil
 }
 
-// archiveDay archives the events in one day, [dayStart, dayEnd): it first exports all
-// three tables to the cold store and verifies them, and only once that has succeeded does
-// it delete in throttled batches. It returns how many events that day had deleted.
-func (s *ArchiveScheduler) archiveDay(ctx context.Context, dayStart, dayEnd time.Time) (int64, error) {
-	dt := dayStart.Format("2006-01-02")
-	base := s.prefix + "event/dt=" + dt + "/"
-
-	// 1) Export to a local temporary gz and then upload, rather than holding a whole day
-	// of data in memory.
-	exp, cleanup, err := s.exportDay(ctx, dayStart, dayEnd)
-	if cleanup != nil {
-		defer cleanup()
-	}
+// archiveDay admits a fixed identity range and publishes complete snapshots in
+// bounded batches. Each verified batch commits its own exact deletion set.
+func (s *ArchiveScheduler) archiveDay(ctx context.Context, start, end time.Time) (int64, error) {
+	upper, err := s.eventRepo.ArchiveDayUpperID(ctx, start, end)
 	if err != nil {
 		return 0, err
 	}
-	if exp.events == 0 {
-		// Shouldn't happen — OldestEventDayBefore already confirmed there is data — but
-		// defend against it anyway.
-		logger.L().Warn("archive day has no events, skip", zap.String("dt", dt))
-		return 0, nil
-	}
-
-	// 2) Upload the three objects plus the manifest, then Head each one to verify it exists.
-	objects := []struct {
-		key, path string
-	}{
-		{base + "pipeline_event.jsonl.gz", exp.eventPath},
-		{base + "pipeline_event_trace.jsonl.gz", exp.tracePath},
-		{base + "pipeline_ai_result.jsonl.gz", exp.aiPath},
-	}
-	for _, o := range objects {
-		if err := s.putFile(ctx, o.key, o.path); err != nil {
-			return 0, err
+	var after, deleted int64
+	for after < upper {
+		if err := ctx.Err(); err != nil {
+			return deleted, err
 		}
-	}
-	manifest, _ := json.Marshal(map[string]any{
-		"day":         dt,
-		"events":      exp.events,
-		"traces":      exp.traces,
-		"ai_results":  exp.aiResults,
-		"archived_at": time.Now().Format(time.RFC3339),
-	})
-	if err := s.putBytes(ctx, base+"_manifest.json", manifest); err != nil {
-		return 0, err
-	}
-	for _, o := range objects {
-		ok, err := s.cold.Exists(ctx, o.key)
-		if err != nil {
-			return 0, err
-		}
-		if !ok {
-			return 0, fmt.Errorf("archive verify failed, object missing after upload: %s", o.key)
-		}
-	}
-	logger.L().Info("archive day uploaded",
-		zap.String("dt", dt), zap.Int64("events", exp.events),
-		zap.Int64("traces", exp.traces), zap.Int64("ai_results", exp.aiResults))
-
-	// 3) Only delete once verification passes: repeatedly take that day's remaining events,
-	// delete from all three tables by event_id, and sleep between batches to throttle.
-	var deleted int64
-	for {
-		select {
-		case <-ctx.Done():
-			return deleted, ctx.Err()
-		default:
-		}
-		batch, err := s.eventRepo.ScanEventsByDay(ctx, dayStart, dayEnd, 0, s.batchSize)
+		snapshot, err := s.eventRepo.ReadArchiveBatch(ctx, start, end, after, upper, s.batchSize)
 		if err != nil {
 			return deleted, err
 		}
-		if len(batch) == 0 {
+		if len(snapshot.Events) == 0 {
 			break
 		}
-		ids := make([]int64, len(batch))
-		for i, e := range batch {
-			ids[i] = e.ID
-		}
-		n, err := s.eventRepo.DeleteArchivedBatch(ctx, ids)
+		n, err := s.archiveBatch(ctx, start, snapshot)
+		deleted += n
 		if err != nil {
 			return deleted, err
 		}
-		deleted += n
+		after = snapshot.Events[len(snapshot.Events)-1].ID
 		if s.batchSleep > 0 {
 			timer := time.NewTimer(s.batchSleep)
 			select {
@@ -307,172 +254,157 @@ func (s *ArchiveScheduler) archiveDay(ctx context.Context, dayStart, dayEnd time
 			}
 		}
 	}
-	logger.L().Info("archive day deleted from mysql", zap.String("dt", dt), zap.Int64("events", deleted))
 	return deleted, nil
 }
 
-// dayExport holds the temporary file paths and row counts from exporting one day.
-type dayExport struct {
-	eventPath, tracePath, aiPath string
-	events, traces, aiResults    int64
+type archiveObject struct {
+	Key    string           `json:"key"`
+	Digest coldstore.Digest `json:"digest"`
+	Rows   int              `json:"rows"`
+}
+type archiveBatchManifest struct {
+	SchemaVersion  int             `json:"schema_version"`
+	Day            string          `json:"day"`
+	SnapshotSHA256 string          `json:"snapshot_sha256"`
+	EventIDs       []int64         `json:"event_ids"`
+	Objects        []archiveObject `json:"objects"`
+}
+type archiveFile struct {
+	path   string
+	digest coldstore.Digest
 }
 
-// exportDay streams one day's events, traces and AI results into three separate
-// temporary gz files. Events are the anchor, with traces and ai_results following by
-// event_id, which keeps the three tables consistent and free of orphans. cleanup removes
-// the temporary files.
-func (s *ArchiveScheduler) exportDay(ctx context.Context, dayStart, dayEnd time.Time) (exp dayExport, cleanup func(), err error) {
-	ew, ePath, err := newGzTemp("q4d-arch-event-*.jsonl.gz")
-	if err != nil {
-		return exp, nil, err
-	}
-	tw, tPath, err := newGzTemp("q4d-arch-trace-*.jsonl.gz")
-	if err != nil {
-		ew.close()
-		return exp, nil, err
-	}
-	aw, aPath, err := newGzTemp("q4d-arch-ai-*.jsonl.gz")
-	if err != nil {
-		ew.close()
-		tw.close()
-		return exp, nil, err
-	}
-	cleanup = func() {
-		_ = os.Remove(ePath)
-		_ = os.Remove(tPath)
-		_ = os.Remove(aPath)
-	}
-	exp.eventPath, exp.tracePath, exp.aiPath = ePath, tPath, aPath
-
-	var afterID int64
-	for {
-		select {
-		case <-ctx.Done():
-			ew.close()
-			tw.close()
-			aw.close()
-			return exp, cleanup, ctx.Err()
-		default:
-		}
-		batch, e := s.eventRepo.ScanEventsByDay(ctx, dayStart, dayEnd, afterID, s.batchSize)
-		if e != nil {
-			ew.close()
-			tw.close()
-			aw.close()
-			return exp, cleanup, e
-		}
-		if len(batch) == 0 {
-			break
-		}
-		ids := make([]int64, len(batch))
-		for i, ev := range batch {
-			ids[i] = ev.ID
-			if e := ew.enc.Encode(ev); e != nil {
-				ew.close()
-				tw.close()
-				aw.close()
-				return exp, cleanup, e
-			}
-			exp.events++
-		}
-		afterID = batch[len(batch)-1].ID
-
-		traces, e := s.eventRepo.ListTracesByEventIDs(ctx, ids)
-		if e != nil {
-			ew.close()
-			tw.close()
-			aw.close()
-			return exp, cleanup, e
-		}
-		for i := range traces {
-			if e := tw.enc.Encode(&traces[i]); e != nil {
-				ew.close()
-				tw.close()
-				aw.close()
-				return exp, cleanup, e
-			}
-			exp.traces++
-		}
-
-		ais, e := s.eventRepo.ListAIResultsByEventIDs(ctx, ids)
-		if e != nil {
-			ew.close()
-			tw.close()
-			aw.close()
-			return exp, cleanup, e
-		}
-		for i := range ais {
-			if e := aw.enc.Encode(&ais[i]); e != nil {
-				ew.close()
-				tw.close()
-				aw.close()
-				return exp, cleanup, e
-			}
-			exp.aiResults++
-		}
-	}
-
-	// Close and flush; any failure counts as a failed export, and nothing may be deleted
-	// on the strength of it.
-	if e := ew.close(); e != nil {
-		tw.close()
-		aw.close()
-		return exp, cleanup, e
-	}
-	if e := tw.close(); e != nil {
-		aw.close()
-		return exp, cleanup, e
-	}
-	if e := aw.close(); e != nil {
-		return exp, cleanup, e
-	}
-	return exp, cleanup, nil
+func bytesDigest(body []byte) coldstore.Digest {
+	hash := sha256.Sum256(body)
+	return coldstore.Digest{Size: int64(len(body)), SHA256: hex.EncodeToString(hash[:])}
 }
 
-func (s *ArchiveScheduler) putFile(ctx context.Context, key, path string) error {
-	f, err := os.Open(path)
+func (s *ArchiveScheduler) archiveBatch(ctx context.Context, day time.Time, snapshot repository.ArchiveSnapshot) (int64, error) {
+	body, err := sonic.Marshal(snapshot)
+	if err != nil {
+		return 0, err
+	}
+	if len(body) > 64<<20 {
+		return 0, errors.New("archive_batch_too_large")
+	}
+	snapshotHash := bytesDigest(body).SHA256
+	date := day.Format("2006-01-02")
+	base := s.prefix + "event/dt=" + date + "/batch=" + snapshotHash + "/"
+	manifest := archiveBatchManifest{SchemaVersion: 2, Day: date, SnapshotSHA256: snapshotHash, EventIDs: make([]int64, len(snapshot.Events)), Objects: []archiveObject{}}
+	for i, event := range snapshot.Events {
+		manifest.EventIDs[i] = event.ID
+	}
+	files := []archiveFile{}
+	defer func() {
+		for _, file := range files {
+			_ = os.Remove(file.path)
+		}
+	}()
+	events, err := writeArchiveRows(ctx, snapshot.Events)
+	if err != nil {
+		return 0, err
+	}
+	files = append(files, events)
+	traces, err := writeArchiveRows(ctx, snapshot.Traces)
+	if err != nil {
+		return 0, err
+	}
+	files = append(files, traces)
+	results, err := writeArchiveRows(ctx, snapshot.AIResults)
+	if err != nil {
+		return 0, err
+	}
+	files = append(files, results)
+	names := []string{"pipeline_event", "pipeline_event_trace", "pipeline_ai_result"}
+	rows := []int{len(snapshot.Events), len(snapshot.Traces), len(snapshot.AIResults)}
+	for i, file := range files {
+		key := base + names[i] + "-" + file.digest.SHA256 + ".jsonl.gz"
+		if err := s.putArchiveFile(ctx, key, file); err != nil {
+			return 0, err
+		}
+		manifest.Objects = append(manifest.Objects, archiveObject{Key: key, Digest: file.digest, Rows: rows[i]})
+	}
+	manifestBody, err := sonic.Marshal(manifest)
+	if err != nil {
+		return 0, err
+	}
+	manifestDigest := bytesDigest(manifestBody)
+	manifestKey := base + "_manifest-" + manifestDigest.SHA256 + ".json"
+	if err := s.cold.PutImmutable(ctx, manifestKey, bytes.NewReader(manifestBody), manifestDigest); err != nil {
+		return 0, err
+	}
+	// Verify every published object, including the manifest, before entering the
+	// deletion transaction. A successful PUT or an existing key is not proof.
+	for _, object := range manifest.Objects {
+		if err := s.cold.Verify(ctx, object.Key, object.Digest); err != nil {
+			return 0, err
+		}
+	}
+	if err := s.cold.Verify(ctx, manifestKey, manifestDigest); err != nil {
+		return 0, err
+	}
+	deleted, err := s.eventRepo.DeleteArchiveSnapshot(ctx, snapshot)
+	if err == nil {
+		logger.L().Info("archive batch committed", zap.String("day", date), zap.String("snapshot", snapshotHash), zap.Int64("events", deleted))
+	}
+	return deleted, err
+}
+func (s *ArchiveScheduler) putArchiveFile(ctx context.Context, key string, file archiveFile) error {
+	f, err := os.Open(file.path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return s.cold.Put(ctx, key, f)
+	return s.cold.PutImmutable(ctx, key, f, file.digest)
 }
 
-func (s *ArchiveScheduler) putBytes(ctx context.Context, key string, b []byte) error {
-	return s.cold.Put(ctx, key, bytes.NewReader(b))
-}
-
-// gzTemp is a temporary gz file plus the JSON-lines encoder writing to it.
-type gzTemp struct {
-	f   *os.File
-	gz  *gzip.Writer
-	enc *json.Encoder
-}
-
-func newGzTemp(pattern string) (*gzTemp, string, error) {
-	f, err := os.CreateTemp("", pattern)
+// Gzip's zero timestamp and the ordered snapshot rows keep bytes stable across
+// retries. Publishing a new batch cannot replace an earlier partial run's data.
+func writeArchiveRows[T any](ctx context.Context, rows []T) (result archiveFile, err error) {
+	f, err := os.CreateTemp("", "q4d-archive-*.jsonl.gz")
 	if err != nil {
-		return nil, "", err
+		return result, err
 	}
+	result.path = f.Name()
+	succeeded := false
+	defer func() {
+		_ = f.Close()
+		if !succeeded {
+			_ = os.Remove(result.path)
+		}
+	}()
 	gz := gzip.NewWriter(f)
-	return &gzTemp{f: f, gz: gz, enc: json.NewEncoder(gz)}, f.Name(), nil
-}
-
-// close flushes and closes both the gzip writer and the file. Safe to call repeatedly:
-// every call after the first is a no-op.
-func (g *gzTemp) close() error {
-	if g.gz == nil {
-		return nil
+	for _, row := range rows {
+		if err = ctx.Err(); err != nil {
+			_ = gz.Close()
+			return result, err
+		}
+		var body []byte
+		body, err = sonic.Marshal(row)
+		if err != nil {
+			_ = gz.Close()
+			return result, err
+		}
+		if _, err = gz.Write(append(body, '\n')); err != nil {
+			_ = gz.Close()
+			return result, err
+		}
 	}
-	gzErr := g.gz.Close()
-	g.gz = nil
-	syncErr := g.f.Sync()
-	closeErr := g.f.Close()
-	if gzErr != nil {
-		return gzErr
+	if err = gz.Close(); err != nil {
+		return result, err
 	}
-	if syncErr != nil {
-		return syncErr
+	if err = f.Sync(); err != nil {
+		return result, err
 	}
-	return closeErr
+	if _, err = f.Seek(0, io.SeekStart); err != nil {
+		return result, err
+	}
+	hash := sha256.New()
+	result.digest.Size, err = io.Copy(hash, f)
+	if err != nil {
+		return result, err
+	}
+	result.digest.SHA256 = hex.EncodeToString(hash.Sum(nil))
+	succeeded = true
+	return result, nil
 }

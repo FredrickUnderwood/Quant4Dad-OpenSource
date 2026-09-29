@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 
 // Use the API's registration and configuration loading path. An unextended
 // checkout must start without making network calls or silently mounting feeds.
-func TestStartupWithoutBundledProviders(t *testing.T) {
-	if got := datasource.Providers(); len(got) != 0 {
+func TestStartupWithExplicitlyDisabledProviders(t *testing.T) {
+	if got := datasource.Providers(); !slices.Equal(got, []string{"http", "tushare"}) {
 		t.Fatalf("unexpected providers: %v", got)
 	}
 	if got := datasource.NewsSourceNames(); len(got) != 0 {

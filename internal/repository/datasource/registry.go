@@ -60,31 +60,15 @@ func Providers() []string {
 
 // New looks up cfg.Provider in the registry and constructs the Client.
 //
-// Three cases:
-//   - Nothing registered: returns the Unavailable() placeholder and no error, so
-//     the service still starts (backtests, pipelines and queries over already
-//     stored data do not depend on fetching). Only triggering a sync errors out,
-//     with a message pointing at how to plug a provider in.
-//   - Something registered and cfg.Provider empty: uses the sole implementation
-//     when there is exactly one, otherwise demands an explicit choice.
-//   - cfg.Provider names something unregistered: errors out, so a typo is never
-//     silently ignored.
-//
-// When cfg.RateLimitPerMin > 0 the client is wrapped in a per-minute limiter so
-// fast upstream responses cannot blow past the quota.
+// Empty and manual explicitly disable network providers. Registration never
+// enables a source implicitly; every other name must be registered.
+// When RateLimitPerMin > 0, built-in providers apply the quota per HTTP request.
 func New(cfg config.DatasourceConfig) (Client, error) {
-	names := Providers()
-	if len(names) == 0 {
+	name := cfg.Provider
+	if name == "" || name == "manual" {
 		return Unavailable(), nil
 	}
-
-	name := cfg.Provider
-	if name == "" {
-		if len(names) > 1 {
-			return nil, fmt.Errorf("datasource.provider is required, registered providers: %v", names)
-		}
-		name = names[0]
-	}
+	names := Providers()
 
 	providerMu.RLock()
 	ctor, ok := providers[name]
@@ -110,9 +94,9 @@ func New(cfg config.DatasourceConfig) (Client, error) {
 	return client, nil
 }
 
-// ErrNoProvider is what every fetch returns when no market-data source has been
-// plugged in. Data-sync returns it before creating a task.
-var ErrNoProvider = errors.New("no datasource provider installed: import your own CSV data or register a datasource.Client (see docs/data-import.md)")
+// ErrNoProvider is returned when network fetching is explicitly disabled.
+// Data-sync returns it before creating a task.
+var ErrNoProvider = errors.New("在设置中选择并配置数据源或导入 CSV")
 
 // Unavailable returns a Client placeholder that always fails, so "no data source
 // plugged in" shows up as "the sync endpoint returns a clear error" rather than
@@ -122,6 +106,8 @@ func Unavailable() Client { return unavailableClient{} }
 type unavailableClient struct{}
 
 func (unavailableClient) Name() string { return "unavailable" }
+
+func (unavailableClient) Probe(context.Context) error { return ErrNoProvider }
 
 func (unavailableClient) ListInstruments(context.Context) ([]*domain.Instrument, error) {
 	return nil, ErrNoProvider

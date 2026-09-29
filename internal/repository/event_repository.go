@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.uber.org/zap"
@@ -10,6 +11,8 @@ import (
 	"github.com/quant4dad/internal/domain"
 	"github.com/quant4dad/internal/logger"
 )
+
+var ErrEventResultState = errors.New("event_result_state_conflict")
 
 type EventRepository struct {
 	db *gorm.DB
@@ -30,15 +33,32 @@ func (r *EventRepository) Create(ctx context.Context, e *domain.Event) error {
 // SaveResult writes the event's final state, the node lineage and the AI results inside one
 // transaction.
 func (r *EventRepository) SaveResult(ctx context.Context, e *domain.Event, traces []domain.EventTrace, aiResults []domain.AIResult) error {
+	if e == nil || !isTerminalEvent(e.Status) {
+		return ErrEventResultState
+	}
+	for _, row := range traces {
+		if row.EventID != e.ID {
+			return ErrEventResultState
+		}
+	}
+	for _, row := range aiResults {
+		if row.EventID != e.ID {
+			return ErrEventResultState
+		}
+	}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&domain.Event{}).Where("id = ?", e.ID).Updates(map[string]any{
+		result := tx.Model(&domain.Event{}).Where("id = ? AND status = ?", e.ID, domain.EventStatusProcessing).Updates(map[string]any{
 			"final_payload":   e.FinalPayload,
 			"status":          e.Status,
 			"dropped_at_node": e.DroppedAtNode,
 			"error":           e.Error,
 			"finished_at":     e.FinishedAt,
-		}).Error; err != nil {
-			return err
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrEventResultState
 		}
 		if len(traces) > 0 {
 			if err := tx.Create(&traces).Error; err != nil {

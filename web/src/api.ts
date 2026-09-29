@@ -1,3 +1,4 @@
+import type { ArchiveStatus, CostInput, CostModel, DeploymentView, IntegrationsView, IntegrationUpdate } from './settings/types';
 import type {
   Strategy, IndicatorMeta, StrategyBody, BarPeriod,
   BacktestJob, BacktestResult, EquityPoint, Trade, Bar,
@@ -168,6 +169,20 @@ export const api = {
                        }),
   pollNewsSource:    (source: string) =>
                        req<{ source: string; new: number }>(`/api/v1/news/sources/${encodeURIComponent(source)}/poll`, { method: 'POST' }),
+
+  // Integration reads are masked; writes submit only the section being edited.
+  getIntegrations: () => req<IntegrationsView>('/api/v1/settings/integrations', { cache: 'no-store' }),
+  setIntegrations: (body: IntegrationUpdate) => req<IntegrationsView>('/api/v1/settings/integrations', { method: 'PUT', body: JSON.stringify(body) }),
+  testMarket: (revision: number) => req<{ ok: boolean; message: string }>('/api/v1/settings/integrations/test-market', { method: 'POST', body: JSON.stringify({ expected_revision: revision }) }),
+  testOSS: (revision: number) => req<{ ok: boolean; message: string }>('/api/v1/settings/integrations/test-oss', { method: 'POST', body: JSON.stringify({ expected_revision: revision }) }),
+  getDeployment: () => req<DeploymentView>('/api/v1/settings/deployment', { cache: 'no-store' }),
+  getArchiveStatus: () => req<ArchiveStatus>('/api/v1/archive/status', { cache: 'no-store' }),
+  runArchive: () => req<{ days: number; events: number }>('/api/v1/archive/run', { method: 'POST' }),
+  listCosts: () => req<CostModel[]>('/api/v1/costs'),
+  createCost: (body: CostInput) => req<CostModel>('/api/v1/costs', { method: 'POST', body: JSON.stringify(body) }),
+  updateCost: (id: number, body: CostInput) => req<CostModel>(`/api/v1/costs/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteCost: (id: number) => req<void>(`/api/v1/costs/${id}`, { method: 'DELETE' }),
+  defaultCost: (id: number) => req<void>(`/api/v1/costs/${id}/default`, { method: 'POST' }),
 
   // ============ Settings: LLM providers ============
   getLLMProviders:   () => req<{ revision: string; providers: Record<string, LLMProviderMasked> }>('/api/v1/settings/llm-providers'),

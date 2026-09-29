@@ -28,6 +28,13 @@ type Config struct {
 	News       NewsConfig       `yaml:"news"`
 	Archive    ArchiveConfig    `yaml:"archive"`
 	Agent      AgentConfig      `yaml:"agent"`
+	Settings   SettingsConfig   `yaml:"settings"`
+}
+
+// SettingsConfig points to the private, writable user integration settings file.
+// It is deliberately separate from the read-only deployment configuration.
+type SettingsConfig struct {
+	Path string `yaml:"path"`
 }
 
 // AgentConfig keeps the staged Agent API surface opt-in. Enabling it currently
@@ -91,10 +98,10 @@ type CSVConfig struct {
 	BaseDir string `yaml:"base_dir"`
 }
 
-// DatasourceConfig configures a user-installed data provider. No network data
-// collectors are included; local CSV import works without a provider.
+// DatasourceConfig is the startup fallback for the official API / user-provided
+// HTTP integration or a registered extension. Settings can override it at runtime.
 type DatasourceConfig struct {
-	Provider        string `yaml:"provider"`           // a name registered via datasource.Register; may be empty when only one is registered
+	Provider        string `yaml:"provider"`           // registered provider name; empty or manual disables remote collection
 	Token           string `yaml:"token"`              // credential, if the implementation needs one
 	BaseURL         string `yaml:"base_url"`           // optional endpoint override
 	InitialYears    int    `yaml:"initial_years"`      // how many years the first full backfill reaches back
@@ -157,10 +164,11 @@ const (
 
 func defaults() *Config {
 	return &Config{
-		Server: ServerConfig{Addr: ":8080"},
-		MCP:    MCPConfig{Addr: ":8080"},
-		Web:    WebConfig{Addr: ":8080", APIBaseURL: "http://127.0.0.1:8080"},
-		Log:    LogConfig{Level: "info"},
+		Server:   ServerConfig{Addr: ":8080"},
+		MCP:      MCPConfig{Addr: ":8080"},
+		Web:      WebConfig{Addr: ":8080", APIBaseURL: "http://127.0.0.1:8080"},
+		Log:      LogConfig{Level: "info"},
+		Settings: SettingsConfig{Path: "./data/settings/integrations.yaml"},
 		Storage: StorageConfig{
 			Backend: StorageBackendSQLite,
 			SQLite:  SQLiteConfig{Path: "./data/quant4dad.db"},

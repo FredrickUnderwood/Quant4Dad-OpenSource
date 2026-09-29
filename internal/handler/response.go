@@ -20,7 +20,7 @@ type ErrorResponse struct {
 func toHTTPError(err error) (int, ErrorResponse) {
 	switch {
 	case errors.Is(err, datasource.ErrNoProvider):
-		return http.StatusServiceUnavailable, ErrorResponse{Code: 503, Message: "No market-data provider is installed. Import your own CSV data or register a provider."}
+		return http.StatusServiceUnavailable, ErrorResponse{Code: 503, Message: "请在设置中选择并配置数据源，或导入自己的 CSV 数据。"}
 	case errors.Is(err, domain.ErrResourceConflict):
 		return http.StatusConflict, ErrorResponse{Code: 409, Message: "内容已被其他操作更新，请重新加载后再保存"}
 	case errors.Is(err, gorm.ErrRecordNotFound):

@@ -2,10 +2,15 @@ package application
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
+	"github.com/bytedance/sonic"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -158,17 +163,17 @@ func TestArchiveRunOnce(t *testing.T) {
 	// -15d day has 2 events / 3 traces / 4 ai results.
 	dt15 := day(-15).Format("2006-01-02")
 	base15 := filepath.Join(coldDir, "test", "event", "dt="+dt15)
-	if n := gzLineCount(t, filepath.Join(base15, "pipeline_event.jsonl.gz")); n != 2 {
+	if n := archivedRows(t, base15, "pipeline_event-"); n != 2 {
 		t.Errorf("dt=%s events lines = %d, want 2", dt15, n)
 	}
-	if n := gzLineCount(t, filepath.Join(base15, "pipeline_event_trace.jsonl.gz")); n != 3 {
+	if n := archivedRows(t, base15, "pipeline_event_trace-"); n != 3 {
 		t.Errorf("dt=%s trace lines = %d, want 3", dt15, n)
 	}
-	if n := gzLineCount(t, filepath.Join(base15, "pipeline_ai_result.jsonl.gz")); n != 4 {
+	if n := archivedRows(t, base15, "pipeline_ai_result-"); n != 4 {
 		t.Errorf("dt=%s ai lines = %d, want 4", dt15, n)
 	}
-	if _, err := os.Stat(filepath.Join(base15, "_manifest.json")); err != nil {
-		t.Errorf("manifest missing: %v", err)
+	if manifests, err := filepath.Glob(filepath.Join(base15, "batch=*", "_manifest-*.json")); err != nil || len(manifests) != 1 {
+		t.Fatalf("manifest missing: %v %v", manifests, err)
 	}
 
 	// A second run should be a no-op, having caught up.
@@ -178,5 +183,216 @@ func TestArchiveRunOnce(t *testing.T) {
 	}
 	if days2 != 0 || events2 != 0 {
 		t.Errorf("second run = (%d days, %d events), want (0,0)", days2, events2)
+	}
+}
+
+func archivedRows(t *testing.T, base, prefix string) int {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(base, "batch=*", prefix+"*.jsonl.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, path := range paths {
+		total += gzLineCount(t, path)
+	}
+	return total
+}
+func archiveFiles(t *testing.T, base string) map[string][]byte {
+	t.Helper()
+	out := map[string][]byte{}
+	err := filepath.WalkDir(base, func(path string, item os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !item.IsDir() {
+			body, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			out[path] = body
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+type archiveHookStore struct {
+	coldstore.ColdStore
+	put    func(string) error
+	verify func(string) error
+}
+
+func (s *archiveHookStore) PutImmutable(ctx context.Context, key string, r io.ReadSeeker, digest coldstore.Digest) error {
+	if s.put != nil {
+		if err := s.put(key); err != nil {
+			return err
+		}
+	}
+	return s.ColdStore.PutImmutable(ctx, key, r, digest)
+}
+func (s *archiveHookStore) Verify(ctx context.Context, key string, digest coldstore.Digest) error {
+	if s.verify != nil {
+		if err := s.verify(key); err != nil {
+			return err
+		}
+	}
+	return s.ColdStore.Verify(ctx, key, digest)
+}
+func archiveScheduler(t *testing.T, db *gorm.DB, store coldstore.ColdStore) *ArchiveScheduler {
+	t.Helper()
+	scheduler, err := NewArchiveScheduler(repository.NewEventRepository(db), store, config.ArchiveConfig{Enabled: true, RetentionDays: 1, BatchSize: 1, DailyTime: "03:30", OSS: config.OSSConfig{Prefix: "test/"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scheduler
+}
+func TestArchiveRetryPreservesPreviouslyPublishedBatches(t *testing.T) {
+	db := archiveTestDB(t)
+	day := time.Now().AddDate(0, 0, -10)
+	for _, uid := range []string{"a", "b", "c"} {
+		seedEvent(t, db, uid, day, 1, 1)
+	}
+	directory := t.TempDir()
+	store := &archiveHookStore{ColdStore: coldstore.NewLocalStore(directory)}
+	manifests := 0
+	store.put = func(key string) error {
+		if strings.Contains(key, "/_manifest-") {
+			manifests++
+			if manifests == 2 {
+				return errors.New("injected_upload_failure")
+			}
+		}
+		return nil
+	}
+	scheduler := archiveScheduler(t, db, store)
+	_, deleted, err := scheduler.RunOnce(context.Background())
+	if err == nil || deleted != 1 || countRows(t, db, &domain.Event{}) != 2 {
+		t.Fatalf("partial run: deleted=%d err=%v", deleted, err)
+	}
+	before := archiveFiles(t, directory)
+	store.put = nil
+	_, deleted, err = scheduler.RunOnce(context.Background())
+	if err != nil || deleted != 2 || countRows(t, db, &domain.Event{}) != 0 {
+		t.Fatalf("retry: %d %v", deleted, err)
+	}
+	after := archiveFiles(t, directory)
+	for key, body := range before {
+		if !bytes.Equal(body, after[key]) {
+			t.Fatal("retry changed an earlier object", key)
+		}
+	}
+	manifestsOnDisk, err := filepath.Glob(filepath.Join(directory, "test/event/dt=*", "batch=*", "_manifest-*.json"))
+	if err != nil || len(manifestsOnDisk) != 3 {
+		t.Fatalf("three immutable batch manifests required: %v %v", manifestsOnDisk, err)
+	}
+	ids := map[int64]bool{}
+	for _, file := range manifestsOnDisk {
+		body, _ := os.ReadFile(file)
+		var manifest archiveBatchManifest
+		if err := sonic.Unmarshal(body, &manifest); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range manifest.EventIDs {
+			if ids[id] {
+				t.Fatal("duplicate logical batch", id)
+			}
+			ids[id] = true
+		}
+	}
+	if len(ids) != 3 {
+		t.Fatal("lost archived identity", ids)
+	}
+}
+func TestArchiveVerificationFailureDoesNotDelete(t *testing.T) {
+	db := archiveTestDB(t)
+	seedEvent(t, db, "verify", time.Now().AddDate(0, 0, -10), 1, 1)
+	store := &archiveHookStore{ColdStore: coldstore.NewLocalStore(t.TempDir()), verify: func(key string) error {
+		if strings.Contains(key, "/_manifest-") {
+			return coldstore.ErrObjectConflict
+		}
+		return nil
+	}}
+	_, deleted, err := archiveScheduler(t, db, store).RunOnce(context.Background())
+	if !errors.Is(err, coldstore.ErrObjectConflict) || deleted != 0 {
+		t.Fatalf("unverified deletion: %d %v", deleted, err)
+	}
+	for _, model := range []any{&domain.Event{}, &domain.EventTrace{}, &domain.AIResult{}} {
+		if countRows(t, db, model) != 1 {
+			t.Fatal("verification failure deleted source rows")
+		}
+	}
+}
+func TestArchiveConcurrentChangesAbortExactDeletion(t *testing.T) {
+	for _, change := range []string{"event", "trace", "ai_result", "new_trace"} {
+		t.Run(change, func(t *testing.T) {
+			db := archiveTestDB(t)
+			id := seedEvent(t, db, change, time.Now().AddDate(0, 0, -10), 1, 1)
+			changed := false
+			store := &archiveHookStore{ColdStore: coldstore.NewLocalStore(t.TempDir())}
+			store.verify = func(key string) error {
+				if changed || !strings.Contains(key, "/_manifest-") {
+					return nil
+				}
+				changed = true
+				switch change {
+				case "event":
+					return db.Model(&domain.Event{}).Where("id = ?", id).Update("source", "changed").Error
+				case "trace":
+					return db.Model(&domain.EventTrace{}).Where("event_id = ?", id).Update("error", "changed").Error
+				case "ai_result":
+					return db.Model(&domain.AIResult{}).Where("event_id = ?", id).Update("model", "changed").Error
+				default:
+					return db.Create(&domain.EventTrace{EventID: id, NodeKey: "late", Action: "pass"}).Error
+				}
+			}
+			_, deleted, err := archiveScheduler(t, db, store).RunOnce(context.Background())
+			if !errors.Is(err, repository.ErrArchiveSnapshotChanged) || deleted != 0 {
+				t.Fatalf("changed snapshot deleted: %d %v", deleted, err)
+			}
+			if countRows(t, db, &domain.Event{}) != 1 || countRows(t, db, &domain.AIResult{}) != 1 {
+				t.Fatal("source removed despite changed snapshot")
+			}
+		})
+	}
+}
+func TestArchiveDayDoesNotDeleteConcurrentNewEvent(t *testing.T) {
+	db := archiveTestDB(t)
+	old := time.Now().AddDate(0, 0, -10)
+	day := time.Date(old.Year(), old.Month(), old.Day(), 0, 0, 0, 0, old.Location())
+	seedEvent(t, db, "initial", day, 1, 1)
+	var late int64
+	store := &archiveHookStore{ColdStore: coldstore.NewLocalStore(t.TempDir())}
+	store.verify = func(key string) error {
+		if late == 0 && strings.Contains(key, "/_manifest-") {
+			late = seedEvent(t, db, "late", day, 1, 1)
+		}
+		return nil
+	}
+	deleted, err := archiveScheduler(t, db, store).archiveDay(context.Background(), day, day.AddDate(0, 0, 1))
+	if err != nil || deleted != 1 {
+		t.Fatalf("archive day: %d %v", deleted, err)
+	}
+	var found domain.Event
+	if err := db.First(&found, late).Error; err != nil {
+		t.Fatal("late unexported event deleted", err)
+	}
+	if countRows(t, db, &domain.EventTrace{}) != 1 || countRows(t, db, &domain.AIResult{}) != 1 {
+		t.Fatal("late child records deleted")
+	}
+}
+func TestArchiveProcessingEventsRemainHot(t *testing.T) {
+	db := archiveTestDB(t)
+	id := seedEvent(t, db, "processing", time.Now().AddDate(0, 0, -10), 0, 0)
+	if err := db.Model(&domain.Event{}).Where("id = ?", id).Update("status", domain.EventStatusProcessing).Error; err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	days, deleted, err := archiveScheduler(t, db, coldstore.NewLocalStore(directory)).RunOnce(context.Background())
+	if err != nil || days != 0 || deleted != 0 || countRows(t, db, &domain.Event{}) != 1 || len(archiveFiles(t, directory)) != 0 {
+		t.Fatalf("processing event archived: %d %d %v", days, deleted, err)
 	}
 }

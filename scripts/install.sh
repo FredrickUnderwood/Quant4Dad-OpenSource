@@ -22,7 +22,7 @@ state="$(cd "$state" && pwd -P)"
 if [[ -f "$state/deployment.env" ]]; then
   while IFS='=' read -r key value; do
     case "$key" in
-      Q4D_UID|Q4D_GID|Q4D_BIND|Q4D_WEB_PORT|Q4D_MCP_PORT|Q4D_PROJECT_NAME|Q4D_API_IMAGE|Q4D_WEB_IMAGE|Q4D_MCP_IMAGE|Q4D_AGENT_IMAGE|Q4D_SKIP_MIGRATION|Q4D_SKIP_SEED|Q4D_NO_BACKGROUND) export "$key=$value" ;;
+      Q4D_UID|Q4D_GID|Q4D_BIND|Q4D_WEB_PORT|Q4D_MCP_PORT|Q4D_PROJECT_NAME|Q4D_API_IMAGE|Q4D_WEB_IMAGE|Q4D_MCP_IMAGE|Q4D_AGENT_IMAGE|Q4D_SKIP_MIGRATION|Q4D_SKIP_SEED|Q4D_NO_BACKGROUND|Q4D_TIMEZONE) export "$key=$value" ;;
     esac
   done < "$state/deployment.env"
 fi
@@ -56,6 +56,8 @@ export Q4D_PROJECT_NAME="${Q4D_PROJECT_NAME:-quant4dad-opensource}"
 export Q4D_API_IMAGE="${Q4D_API_IMAGE:-quant4dad-opensource-api:local}" Q4D_WEB_IMAGE="${Q4D_WEB_IMAGE:-quant4dad-opensource-web:local}"
 export Q4D_MCP_IMAGE="${Q4D_MCP_IMAGE:-quant4dad-opensource-mcp:local}" Q4D_AGENT_IMAGE="${Q4D_AGENT_IMAGE:-quant4dad-opensource-agent:local}"
 export Q4D_SKIP_MIGRATION="${Q4D_SKIP_MIGRATION:-false}" Q4D_SKIP_SEED="${Q4D_SKIP_SEED:-false}" Q4D_NO_BACKGROUND="${Q4D_NO_BACKGROUND:-false}"
+export Q4D_TIMEZONE="${Q4D_TIMEZONE:-Asia/Shanghai}"
+[[ "$Q4D_TIMEZONE" =~ ^[A-Za-z0-9_+./-]+$ && "$Q4D_TIMEZONE" != *..* && "$Q4D_TIMEZONE" != /* ]] || { echo 'Invalid deployment timezone' >&2; exit 2; }
 [[ "$Q4D_UID" =~ ^[1-9][0-9]*$ && "$Q4D_GID" =~ ^[0-9]+$ && "$Q4D_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || exit 2
 for port in "$Q4D_WEB_PORT" "$Q4D_MCP_PORT"; do [[ "$port" =~ ^[0-9]+$ ]] && ((port>0 && port<65536)) || exit 2; done
 [[ "$Q4D_BIND" =~ ^[0-9.]+$ ]] || { echo '--bind requires an IPv4 address' >&2; exit 2; }
@@ -70,7 +72,7 @@ if ((with_agent)); then COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,
 export COMPOSE_PROFILES
 # This file contains only deployment settings. Business secrets stay in private YAML/token files.
 : > "$state/deployment.env"
-for key in Q4D_UID Q4D_GID Q4D_BIND Q4D_WEB_PORT Q4D_MCP_PORT Q4D_PROJECT_NAME Q4D_STATE_DIR Q4D_API_IMAGE Q4D_WEB_IMAGE Q4D_MCP_IMAGE Q4D_AGENT_IMAGE Q4D_SKIP_MIGRATION Q4D_SKIP_SEED Q4D_NO_BACKGROUND COMPOSE_PROFILES; do
+for key in Q4D_UID Q4D_GID Q4D_BIND Q4D_WEB_PORT Q4D_MCP_PORT Q4D_PROJECT_NAME Q4D_STATE_DIR Q4D_API_IMAGE Q4D_WEB_IMAGE Q4D_MCP_IMAGE Q4D_AGENT_IMAGE Q4D_SKIP_MIGRATION Q4D_SKIP_SEED Q4D_NO_BACKGROUND Q4D_TIMEZONE COMPOSE_PROFILES; do
  value="${!key}"; [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || exit 2; printf '%s=%s\n' "$key" "$value" >> "$state/deployment.env"
 done
 compose=(docker compose --env-file "$state/deployment.env" -f "$root/deploy/compose.yaml")

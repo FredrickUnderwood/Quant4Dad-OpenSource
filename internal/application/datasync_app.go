@@ -23,11 +23,26 @@ import (
 // repository. Tasks run in the background; progress lives on the DataSyncTask
 // record.
 type DataSyncApp struct {
+	configMu    sync.RWMutex
 	cfg         config.DatasourceConfig
 	tasks       *service.DataSyncService
 	instruments *service.InstrumentService
 	bars        repository.BarRepository
 	client      datasource.Client
+}
+
+// Configure applies to subsequently admitted tasks. Each task keeps its own
+// immutable client/configuration snapshot, including its request rate limiter.
+func (a *DataSyncApp) Configure(cfg config.DatasourceConfig, client datasource.Client) {
+	a.configMu.Lock()
+	defer a.configMu.Unlock()
+	a.cfg, a.client = cfg, client
+}
+
+func (a *DataSyncApp) taskSnapshot() *DataSyncApp {
+	a.configMu.RLock()
+	defer a.configMu.RUnlock()
+	return &DataSyncApp{cfg: a.cfg, client: a.client, tasks: a.tasks, instruments: a.instruments, bars: a.bars}
 }
 
 func NewDataSyncApp(
@@ -48,6 +63,10 @@ func NewDataSyncApp(
 
 // Enqueue persists the task in pending state and dispatches a background runner.
 func (a *DataSyncApp) Enqueue(ctx context.Context, task *domain.DataSyncTask) (*domain.DataSyncTask, error) {
+	return a.taskSnapshot().enqueueSnapshot(ctx, task)
+}
+
+func (a *DataSyncApp) enqueueSnapshot(ctx context.Context, task *domain.DataSyncTask) (*domain.DataSyncTask, error) {
 	if datasource.IsUnavailable(a.client) {
 		return nil, datasource.ErrNoProvider
 	}
