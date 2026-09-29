@@ -1,0 +1,145 @@
+name: Publish GitHub release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing Docker Hub version (for example v0.1.0)'
+        required: true
+        type: string
+      image_prefix:
+        description: 'Docker Hub image prefix'
+        default: docker.io/fredrick19/quant4dad-opensource
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      image_prefix:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ inputs.version }}
+      IMAGE_PREFIX: ${{ inputs.image_prefix }}
+      OWNER: ${{ github.repository_owner }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select release source
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Use a stable version such as v0.1.0.'; exit 1; }
+          [[ "$IMAGE_PREFIX" =~ ^docker\.io/[a-z0-9][a-z0-9_-]*/quant4dad-opensource$ ]] || { echo 'Use a Docker Hub namespace and the quant4dad-opensource image prefix.'; exit 1; }
+          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            git checkout --detach "refs/tags/$VERSION"
+          fi
+          printf 'RELEASE_SHA=%s\nGHCR_PREFIX=ghcr.io/%s/quant4dad-opensource\n' \
+            "$(git rev-parse HEAD)" "${OWNER,,}" >> "$GITHUB_ENV"
+      - name: Check deployment bundle
+        run: |
+          bash -n scripts/install.sh scripts/download.sh scripts/package-docker-release.sh
+          python3 scripts/test-install.py
+          docker compose -f deploy/compose.yaml --profile mcp --profile agent config --quiet
+      - name: Install verified crane release
+        env:
+          CRANE_VERSION: v0.22.1
+        run: |
+          base="https://github.com/google/go-containerregistry/releases/download/$CRANE_VERSION"
+          archive=go-containerregistry_Linux_x86_64.tar.gz
+          mkdir -p "$RUNNER_TEMP/crane-bin"
+          cd "$RUNNER_TEMP/crane-bin"
+          curl -fsSLO "$base/$archive"
+          curl -fsSLO "$base/checksums.txt"
+          awk -v file="$archive" '$2 == file {print}' checksums.txt > selected-checksum.txt
+          test -s selected-checksum.txt
+          sha256sum --check selected-checksum.txt
+          tar -xzf "$archive" crane
+          printf '%s\n' "$RUNNER_TEMP/crane-bin" >> "$GITHUB_PATH"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Copy and verify all platforms
+        run: |
+          : > image-digests.tsv
+          for service in api web mcp agent; do
+            source="$IMAGE_PREFIX-$service:$VERSION"
+            target="$GHCR_PREFIX-$service:$VERSION"
+            digest="$(crane digest "$source")"
+            crane manifest "$IMAGE_PREFIX-$service@$digest" > "$RUNNER_TEMP/$service.json"
+            python3 - "$RUNNER_TEMP/$service.json" <<'PY'
+          import json, sys
+          with open(sys.argv[1]) as f:
+              manifests = json.load(f)["manifests"]
+          platforms = {(m["platform"]["os"], m["platform"]["architecture"]) for m in manifests}
+          assert len(manifests) == 2 and platforms == {("linux", "amd64"), ("linux", "arm64")}, platforms
+          PY
+            crane copy "$IMAGE_PREFIX-$service@$digest" "$target"
+            test "$(crane digest "$target")" = "$digest"
+            printf '%s\t%s\t%s\t%s\n' "$service" "$source" "$target" "$digest" >> image-digests.tsv
+          done
+          for service in api web mcp agent; do
+            crane tag "$GHCR_PREFIX-$service:$VERSION" latest
+          done
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          images = []
+          for line in Path("image-digests.tsv").read_text().splitlines():
+              service, source, target, digest = line.split("\t")
+              images.append({"service": service, "dockerhub": source, "ghcr": target,
+                             "digest": digest, "platforms": ["linux/amd64", "linux/arm64"]})
+          Path("release-images.json").write_text(json.dumps(
+              {"version": os.environ["VERSION"], "source_commit": os.environ["RELEASE_SHA"],
+               "images": images}, indent=2) + "\n")
+          PY
+      - name: Package version-pinned installers
+        run: |
+          bash scripts/package-docker-release.sh "$IMAGE_PREFIX" "$VERSION" quant4dad-docker.tar.gz
+          bash scripts/package-docker-release.sh "$GHCR_PREFIX" "$VERSION" quant4dad-ghcr.tar.gz
+          sha256sum quant4dad-docker.tar.gz quant4dad-ghcr.tar.gz release-images.json > SHA256SUMS
+          cat > release-notes.md <<'NOTES'
+          本地量化研究工作台：行情分析、策略回测、事件流水线，可选 MCP 与 AI 助手。默认 SQLite，支持 Linux amd64 / arm64。
+
+          - **quant4dad-docker.tar.gz**：从 Docker Hub 拉取镜像。
+          - **quant4dad-ghcr.tar.gz**：从 GitHub Packages 拉取镜像。
+          - **SHA256SUMS**：下载文件校验值；**release-images.json**：两处镜像地址与相同的镜像摘要。
+
+          解压任一安装包后，在 quant4dad 目录执行：
+
+          ~~~sh
+          ./scripts/install.sh --pull
+          ~~~
+
+          追加 --with-mcp / --with-agent 启用扩展。打开 http://127.0.0.1:3000；登录 token 位于 data/standalone/config/login-token。升级前备份 data/standalone。
+
+          环境：Docker、Compose ≥ 2.20、Bash。源代码 ZIP / tar.gz 见下方 Source code。
+          NOTES
+      - name: Publish GitHub Release
+        run: |
+          assets=(quant4dad-docker.tar.gz quant4dad-ghcr.tar.gz SHA256SUMS release-images.json)
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "${assets[@]}" --clobber
+          else
+            gh release create "$VERSION" "${assets[@]}" \
+              --target "$RELEASE_SHA" --title "Quant4Dad Open Source $VERSION" --notes-file release-notes.md
+          fi

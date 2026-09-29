@@ -23,5 +23,5 @@ printf '%s\n' 'Run: ./scripts/install.sh --pull' \
   'Keep and back up data/standalone when upgrading.' \
   'Docs: https://github.com/FredrickUnderwood/Quant4Dad-OpenSource#readme' \
   > "$staging/quant4dad/README.txt"
-tar -czf "$output" -C "$staging" quant4dad
+COPYFILE_DISABLE=1 tar -czf "$output" -C "$staging" quant4dad
 printf 'Created %s\n' "$output"

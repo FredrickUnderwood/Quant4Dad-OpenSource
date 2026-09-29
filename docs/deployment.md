@@ -6,7 +6,9 @@ Quant4Dad runs without a deployment platform, configuration service, private SDK
 
 The public `v0.1.0` and `latest` tags support Linux amd64 and arm64.
 
-Public image locations: [API](https://hub.docker.com/r/fredrick19/quant4dad-opensource-api), [Web](https://hub.docker.com/r/fredrick19/quant4dad-opensource-web), [MCP](https://hub.docker.com/r/fredrick19/quant4dad-opensource-mcp), [Agent](https://hub.docker.com/r/fredrick19/quant4dad-opensource-agent).
+Docker Hub image locations: [API](https://hub.docker.com/r/fredrick19/quant4dad-opensource-api), [Web](https://hub.docker.com/r/fredrick19/quant4dad-opensource-web), [MCP](https://hub.docker.com/r/fredrick19/quant4dad-opensource-mcp), [Agent](https://hub.docker.com/r/fredrick19/quant4dad-opensource-agent).
+
+[GitHub Releases](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/releases/latest) provides two small, version-pinned installers: `quant4dad-docker.tar.gz` (Docker Hub) and `quant4dad-ghcr.tar.gz` ([GitHub Packages](https://github.com/FredrickUnderwood/Quant4Dad-OpenSource/packages)). Verify the archive with `SHA256SUMS`, extract it, then run `./scripts/install.sh --pull` inside `quant4dad`. Both registries contain identical amd64 and arm64 images; `release-images.json` records their digests.
 
 The [download script](../scripts/download.sh) fetches only the installer, Compose file, public image references and license into `./quant4dad`, then pulls the images. It needs curl and Bash; Git, Go, Node.js and a C compiler are not required on the host:
 
@@ -144,9 +146,11 @@ Re-running the installer preserves credentials, stored data, enabled profiles, a
 
 Configure the GitHub repository variable `DOCKERHUB_USERNAME=fredrick19`, secret `DOCKERHUB_TOKEN` (write access to the four image repositories), and optionally `DOCKERHUB_NAMESPACE` for an organization. The `quant4dad-opensource-api`, `-web`, `-mcp`, and `-agent` repositories must be public for anonymous installation.
 
-Run **Publish Docker images** with a stable version such as `v0.1.0`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags. It attaches a small installer archive and SHA256 file to the GitHub release. A failed build or smoke check prevents publication of the combined release tags and download bundle.
+Run **Publish Docker images** with a stable version such as `v0.1.0`, or push that version tag. The workflow builds on native amd64 and arm64 runners, checks Web/API/MCP/Agent startup and the 31-tool catalog, then publishes the version and `latest` image tags to Docker Hub and calls **Publish GitHub release**. A failed build or smoke check prevents publication of the combined release tags and download bundles.
 
-Once configured, workflow releases additionally provide `quant4dad-docker.tar.gz` with version-pinned references. Extract it over the installation directory and run `./scripts/install.sh --pull`.
+For an already published Docker Hub version, run **Publish GitHub release** directly with that version and the Docker Hub image prefix. It copies every platform to `ghcr.io/fredrickunderwood/quant4dad-opensource-{api,web,mcp,agent}`, verifies identical manifest digests, and creates the GitHub Release with both installer archives, `SHA256SUMS` and `release-images.json`. An existing Git tag selects the matching source; a new tag points to the selected workflow commit. This workflow uses GitHub's scoped `GITHUB_TOKEN`; no personal token or Docker Hub write secret is needed.
+
+GitHub automatically links workflow-published packages to this repository. After their first publication, set each package's visibility to **Public** in its package settings so users can pull anonymously. Subsequent releases retain this visibility.
 
 The archive includes version-pinned image names in `deploy/images.env`, installer, Compose configuration and license; it contains no source build context, credentials or user data. Local packaging is also available:
 
